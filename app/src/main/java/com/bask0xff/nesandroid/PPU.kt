@@ -264,6 +264,12 @@ class PPU(private val bus: Bus) {
             val plane0 = read(patternAddr.toUShort()).toInt()
             val plane1 = read((patternAddr + 8).toUShort()).toInt()
 
+            // Получаем атрибуты для этого тайла
+            val attrAddr = baseNTAddr + 0x3C0 + (coarseY / 4) * 8 + (coarseX / 4)
+            val attrByte = read(attrAddr.toUShort()).toInt()
+            val attrShift = ((coarseY % 4) / 2) * 2 + ((coarseX % 4) / 2)
+            val paletteIndex = (attrByte shr (attrShift * 2)) and 0x03
+
             for (i in 0 until 8) {
                 val pixel = tile * 8 + i - fineX
                 if (pixel < 0 || pixel >= SCREEN_WIDTH) continue
@@ -275,24 +281,16 @@ class PPU(private val bus: Bus) {
 
                 if (colorIndex != 0) {
                     bgMask[pixel] = true
-                    val color = getColorFromPalette(colorIndex, 0)
+                    val color = getColorFromPalette(colorIndex, paletteIndex)
                     scanlineBuffer[pixel] = color
                     pixelsRendered++
-
-                    // Отладка первых 5 пикселей
-                    if (debugFramesShown < 1 && pixelsRendered <= 5) {
-                        println("Pixel color: colorIndex=$colorIndex, color=0x${color.toString(16)}")
-                    }
                 }
             }
 
             renderV = incrementX(renderV)
         }
-
-        if (debugFramesShown < 1) {
-            println("Background rendered $pixelsRendered pixels in scanline $scanline")
-        }
     }
+
 
 
     private fun debugVRAM() {
@@ -370,11 +368,7 @@ class PPU(private val bus: Bus) {
 
                 // Sprite 0 Hit
                 if (i == 0 && bgMask[px]) {
-                    if (!debugSkipSprite0Hit) {
-                        ppustatus = ppustatus or 0x40
-                    } else {
-                        ppustatus = ppustatus or 0x40
-                    }
+                    ppustatus = ppustatus or 0x40
                 }
 
                 if (spritePixelDrawn[px]) continue
@@ -386,6 +380,7 @@ class PPU(private val bus: Bus) {
             }
         }
     }
+
 
     // ====================== Регистры ======================
 
@@ -549,33 +544,27 @@ class PPU(private val bus: Bus) {
     // ====================== Colors ======================
 
     private fun getSpriteColor(colorIndex: Int, paletteIndex: Int): Int {
-        val base = 0x11 + paletteIndex * 4
-        val paletteAddr = (base + colorIndex - 1) and 0x1F
+        if (colorIndex == 0) return 0  // Прозрачный - не рисуем
+
+        // Спрайты используют палитры 4-7 (адреса 0x10-0x1F в paletteRAM)
+        val base = 0x10 + (paletteIndex * 4)
+        val paletteAddr = base + colorIndex
         val colorCode = paletteRAM[paletteAddr].toInt() and 0x3F
         return nesPalette[colorCode]
     }
 
     private fun getColorFromPalette(colorIndex: Int, paletteIndex: Int): Int {
-        // ВРЕМЕННО: возвращаем яркие цвета для теста
-        return when (colorIndex) {
-            1 -> 0xFFFF0000.toInt() // Красный
-            2 -> 0xFF00FF00.toInt() // Зелёный
-            3 -> 0xFFFFFF00.toInt() // Жёлтый
-            else -> 0xFF000000.toInt() // Чёрный
-        }
-
-        /* Оригинальный код закомментирован
         if (colorIndex == 0) {
-            val paletteAddr = 0
-            val colorCode = paletteRAM[paletteAddr].toInt() and 0x3F
+            // Цвет фона - используем palette[0]
+            val colorCode = paletteRAM[0].toInt() and 0x3F
             return nesPalette[colorCode]
         } else {
-            val base = 1 + paletteIndex * 4
-            val paletteAddr = (base + colorIndex - 1) and 0x1F
+            // Цвет из палитры фона (0-3)
+            val base = paletteIndex * 4
+            val paletteAddr = base + colorIndex
             val colorCode = paletteRAM[paletteAddr].toInt() and 0x3F
             return nesPalette[colorCode]
         }
-        */
     }
 
     fun updateBitmap() {
