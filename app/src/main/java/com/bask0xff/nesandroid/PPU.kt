@@ -168,7 +168,6 @@ class PPU(private val bus: Bus) {
                     }
                 }
             }
-
             scanlineCycle++
 
             if (scanlineCycle >= 341) {

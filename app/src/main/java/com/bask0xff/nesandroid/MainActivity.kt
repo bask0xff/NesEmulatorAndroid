@@ -1,10 +1,12 @@
-// MainActivity.kt
 package com.bask0xff.nesandroid
 
+import android.graphics.Matrix
+import android.graphics.Paint
 import android.os.Bundle
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.activity.ComponentActivity
+import android.graphics.Color
 
 class MainActivity : ComponentActivity() {
 
@@ -31,10 +33,32 @@ class MainActivity : ComponentActivity() {
                         val canvas = holder.lockCanvas() ?: continue
                         try {
                             val bmp = nes.getBitmap()
-                            val sx = canvas.width.toFloat() / bmp.width
-                            val sy = canvas.height.toFloat() / bmp.height
-                            canvas.scale(sx, sy)
-                            canvas.drawBitmap(bmp, 0f, 0f, null)
+
+                            // Очищаем фон чёрным
+                            canvas.drawColor(Color.BLACK)
+
+                            // NES соотношение сторон: 256x240 отображалось на 4:3 TV
+                            // Масштабируем с сохранением пропорций, центрируем
+                            val screenW = canvas.width.toFloat()
+                            val screenH = canvas.height.toFloat()
+                            val nesW = bmp.width.toFloat()
+                            val nesH = bmp.height.toFloat()
+
+                            val scale = minOf(screenW / nesW, screenH / nesH)
+
+                            val scaledW = nesW * scale
+                            val scaledH = nesH * scale
+
+                            val offsetX = (screenW - scaledW) / 2f
+                            val offsetY = (screenH - scaledH) / 2f
+
+                            val matrix = Matrix()
+                            matrix.setScale(scale, scale)
+                            matrix.postTranslate(offsetX, offsetY)
+
+                            canvas.drawBitmap(bmp, matrix, Paint().apply {
+                                isFilterBitmap = false // Пиксельный стиль без сглаживания
+                            })
                         } finally {
                             holder.unlockCanvasAndPost(canvas)
                         }
