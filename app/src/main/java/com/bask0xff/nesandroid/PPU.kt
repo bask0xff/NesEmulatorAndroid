@@ -174,17 +174,8 @@ class PPU(private val bus: Bus) {
             if (scanlineCycle >= 341) {
                 scanlineCycle = 0
 
-                if (scanline == 0 && !debugPpumaskLogged) {
-                    println("PPU frame=$debugFrameCount ppuctrl=${ppuctrl.toString(16)} ppumask=${ppumask.toString(16)} v=${v.toString(16)}")
-                    debugPpumaskLogged = true
-                }
-                if (scanline == 240) {
-                    debugFrameCount++
-                    debugPpumaskLogged = false
-                }
-
                 if (scanline in 0..239) {
-                    copyXFromTToV()
+                    if (scanline == 0) copyXFromTToV()  // ← исправлено
                     renderScanline(scanline)
                     incrementY()
                 }
@@ -244,7 +235,6 @@ class PPU(private val bus: Bus) {
     private fun renderBackground() {
         if ((ppumask and 0x08) == 0) return
 
-        // Заполняем строку цветом фона
         val bgColor = nesPalette[paletteRAM[0].toInt() and 0x3F]
         scanlineBuffer.fill(bgColor)
 
@@ -267,8 +257,8 @@ class PPU(private val bus: Bus) {
 
             val attrAddr = baseNTAddr + 0x3C0 + (coarseY / 4) * 8 + (coarseX / 4)
             val attrByte = read(attrAddr.toUShort()).toInt()
-            val attrShift = ((coarseY % 4) / 2) * 2 + ((coarseX % 4) / 2)
-            val paletteIndex = (attrByte shr (attrShift * 2)) and 0x03
+            val attrShift = ((coarseY and 0x02) shl 1) or (coarseX and 0x02)  // ← исправлено
+            val paletteIndex = (attrByte shr attrShift) and 0x03               // ← исправлено
 
             for (i in 0 until 8) {
                 val pixel = tile * 8 + i - fineX
