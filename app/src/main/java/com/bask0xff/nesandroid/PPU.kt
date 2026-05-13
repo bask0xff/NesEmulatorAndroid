@@ -175,7 +175,7 @@ class PPU(private val bus: Bus) {
                 scanlineCycle = 0
 
                 if (scanline in 0..239) {
-                    if (scanline == 0) copyXFromTToV()  // ← исправлено
+                    if (scanline == 0) copyXFromTToV()
                     renderScanline(scanline)
                     incrementY()
                 }
