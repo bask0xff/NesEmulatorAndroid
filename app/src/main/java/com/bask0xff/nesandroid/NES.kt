@@ -1,30 +1,69 @@
 package com.bask0xff.nesandroid
 
-import android.content.Context
+import android.graphics.Bitmap
+import android.os.Bundle
+import android.widget.ImageView
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.viewinterop.AndroidView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
-class NES(context: Context) {
+class MainActivity : ComponentActivity() {
 
-    private val bus: Bus
+    private lateinit var nes: NES
 
-    init {
-        val romBytes = context.assets.open("nestest.nes").readBytes()
-        println("ROM loaded: size: ${romBytes.size} bytes")
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
 
-        val cartridge = Cartridge(romBytes)
-        bus = Bus(cartridge)
-        bus.cpu.reset()
-        println("NES initialized")
-    }
+        nes = NES(this)
 
-    fun runFrame() {
-        var cycles = 0
-        while (cycles < 29781) {
-            val used = bus.cpu.executeInstruction()
-            cycles += used
-            bus.ppu.step(used * 3)
+        setContent {
+            MaterialTheme {
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    NesScreen(nes = nes)
+                }
+            }
         }
-        bus.ppu.updateBitmap()
+    }
+}
+
+@Composable
+fun NesScreen(nes: NES) {
+    var frameCount by remember { mutableIntStateOf(0) }
+    var bitmap by remember { mutableStateOf<Bitmap?>(null) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            withContext(Dispatchers.Default) {
+                nes.runFrame()
+                bitmap = nes.getBitmap()
+            }
+            frameCount++
+            if (frameCount % 60 == 0) {
+                println("Frame $frameCount rendered, bitmap=${bitmap != null}")
+            }
+        }
     }
 
-    fun getBitmap() = bus.ppu.bitmap
+    AndroidView(
+        factory = { context ->
+            ImageView(context).apply {
+                scaleType = ImageView.ScaleType.FIT_XY
+                setBackgroundColor(0xFF00FF00.toInt()) // Зелёный фон для проверки
+            }
+        },
+        update = { imageView ->
+            bitmap?.let {
+                imageView.setImageBitmap(it)
+                println("ImageView updated with bitmap")
+            } ?: println("Bitmap is null!")
+        },
+        modifier = Modifier.fillMaxSize()
+    )
 }

@@ -49,6 +49,49 @@ class PPU(private val bus: Bus) {
         println("PPU initialized")
     }
 
+    // Добавьте этот метод в класс PPU
+    fun drawTestPattern() {
+        println("Drawing test pattern")
+        // Заливаем фон синим
+        val bgColor = 0xFF0000FF.toInt()
+        for (i in frameBuffer.indices) {
+            frameBuffer[i] = bgColor
+        }
+
+        // Рисуем цветные полосы
+        val colors = intArrayOf(
+            0xFFFF0000.toInt(), // Красный
+            0xFF00FF00.toInt(), // Зелёный
+            0xFFFFFF00.toInt(), // Жёлтый
+            0xFFFF00FF.toInt(), // Пурпурный
+            0xFF00FFFF.toInt(), // Голубой
+            0xFFFFFFFF.toInt()  // Белый
+        )
+
+        val barHeight = SCREEN_HEIGHT / colors.size
+        for (i in colors.indices) {
+            val startY = i * barHeight
+            val endY = if (i == colors.size - 1) SCREEN_HEIGHT else startY + barHeight
+            for (y in startY until endY) {
+                for (x in 0 until SCREEN_WIDTH) {
+                    frameBuffer[y * SCREEN_WIDTH + x] = colors[i]
+                }
+            }
+        }
+
+        // Рисуем рамку
+        for (x in 0 until SCREEN_WIDTH) {
+            frameBuffer[x] = 0xFFFFFFFF.toInt() // Верхняя
+            frameBuffer[(SCREEN_HEIGHT - 1) * SCREEN_WIDTH + x] = 0xFFFFFFFF.toInt() // Нижняя
+        }
+        for (y in 0 until SCREEN_HEIGHT) {
+            frameBuffer[y * SCREEN_WIDTH] = 0xFFFFFFFF.toInt() // Левая
+            frameBuffer[y * SCREEN_WIDTH + SCREEN_WIDTH - 1] = 0xFFFFFFFF.toInt() // Правая
+        }
+
+        println("Test pattern drawn, frameBuffer[0]=${frameBuffer[0].toString(16)}")
+    }
+
     fun reset() {
         ppuctrl = 0
         ppumask = 0
@@ -120,16 +163,41 @@ class PPU(private val bus: Bus) {
         }
     }
 
+    private var debugFramesShown = 0
+
     private fun renderScanline(scanline: Int) {
         bgMask.fill(false)
         scanlineBuffer.fill(0)
         renderBackground()
         renderSprites()
         System.arraycopy(scanlineBuffer, 0, frameBuffer, scanline * SCREEN_WIDTH, SCREEN_WIDTH)
+
+        // Отладка для первого кадра
+        if (scanline == SCREEN_HEIGHT - 1 && debugFramesShown < 3) {
+            var nonBlackCount = 0
+            for (i in 0 until SCREEN_WIDTH * SCREEN_HEIGHT) {
+                if (frameBuffer[i] != 0xFF000000.toInt()) {
+                    nonBlackCount++
+                }
+            }
+            println("Frame ${debugFramesShown + 1}: $nonBlackCount non-black pixels out of ${SCREEN_WIDTH * SCREEN_HEIGHT}")
+            println("  PPUMASK: 0x${ppumask.toString(16)} (bg enabled=${(ppumask and 0x08) != 0})")
+            println("  First pixel color: 0x${frameBuffer[0].toString(16)}")
+            debugFramesShown++
+        }
     }
 
     private fun renderBackground() {
-        if ((ppumask and 0x08) == 0) return
+        // Если фон выключен - заливаем цветом из palette[0]
+        if ((ppumask and 0x08) == 0) {
+            val bgColor = nesPalette[paletteRAM[0].toInt() and 0x3F]
+            for (x in 0 until SCREEN_WIDTH) {
+                if (scanlineBuffer[x] == 0) { // Только если sprite не закрасил
+                    scanlineBuffer[x] = bgColor
+                }
+            }
+            return
+        }
 
         var renderV = v
         for (tile in 0 until 33) {
@@ -163,8 +231,13 @@ class PPU(private val bus: Bus) {
                 val bit1 = (plane1 shr bitIndex) and 1
                 val colorIndex = bit0 or (bit1 shl 1)
 
-                if (colorIndex != 0) bgMask[pixel] = true
-                scanlineBuffer[pixel] = getColorFromPalette(colorIndex, paletteIndex)
+                if (colorIndex != 0) {
+                    bgMask[pixel] = true
+                    scanlineBuffer[pixel] = getColorFromPalette(colorIndex, paletteIndex)
+                } else if (scanlineBuffer[pixel] == 0) {
+                    // Прозрачный пиксель - используем цвет фона
+                    scanlineBuffer[pixel] = nesPalette[paletteRAM[0].toInt() and 0x3F]
+                }
             }
 
             renderV = incrementX(renderV)
@@ -414,7 +487,19 @@ class PPU(private val bus: Bus) {
     }
 
     fun updateBitmap() {
-        bitmap.setPixels(frameBuffer, 0, SCREEN_WIDTH, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
+        // Проверяем что bitmap не null и имеет правильный размер
+        if (bitmap.width != SCREEN_WIDTH || bitmap.height != SCREEN_HEIGHT) {
+            println("Warning: Bitmap size mismatch! Recreating...")
+            // Пересоздавать нельзя из-за val, но можно очистить
+            bitmap.eraseColor(0xFF000000.toInt())
+        }
+
+        try {
+            bitmap.setPixels(frameBuffer, 0, SCREEN_WIDTH, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
+            println("Bitmap updated, first pixel: 0x${frameBuffer[0].toString(16)}")
+        } catch (e: Exception) {
+            println("Error updating bitmap: ${e.message}")
+        }
     }
 
     // ====================== NES Палитра (64 цвета) ======================
