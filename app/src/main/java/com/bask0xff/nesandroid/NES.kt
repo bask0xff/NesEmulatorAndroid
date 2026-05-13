@@ -1,69 +1,47 @@
 package com.bask0xff.nesandroid
 
-import android.graphics.Bitmap
-import android.os.Bundle
-import android.widget.ImageView
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.viewinterop.AndroidView
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import android.content.Context
 
-class MainActivity : ComponentActivity() {
+class NES(context: Context) {
 
-    private lateinit var nes: NES
+    private var bus: Bus
+    private var testMode = false  // Временный режим для отладки
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        nes = NES(this)
-
-        setContent {
-            MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    NesScreen(nes = nes)
-                }
-            }
+    init {
+        try {
+            val romBytes = context.assets.open("nestest.nes").readBytes()
+            println("ROM loaded: size: ${romBytes.size} bytes")
+            val cartridge = Cartridge(romBytes)
+            bus = Bus(cartridge)
+            testMode = false
+        } catch (e: Exception) {
+            println("Failed to load ROM: ${e.message}, using test mode")
+            // Создаём пустую заглушку если ROM не загружен
+            val emptyCartridge = Cartridge(byteArrayOf())
+            bus = Bus(emptyCartridge)
+            testMode = true
         }
-    }
-}
 
-@Composable
-fun NesScreen(nes: NES) {
-    var frameCount by remember { mutableIntStateOf(0) }
-    var bitmap by remember { mutableStateOf<Bitmap?>(null) }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            withContext(Dispatchers.Default) {
-                nes.runFrame()
-                bitmap = nes.getBitmap()
-            }
-            frameCount++
-            if (frameCount % 60 == 0) {
-                println("Frame $frameCount rendered, bitmap=${bitmap != null}")
-            }
-        }
+        bus.cpu.reset()
+        println("NES initialized, testMode=$testMode")
     }
 
-    AndroidView(
-        factory = { context ->
-            ImageView(context).apply {
-                scaleType = ImageView.ScaleType.FIT_XY
-                setBackgroundColor(0xFF00FF00.toInt()) // Зелёный фон для проверки
-            }
-        },
-        update = { imageView ->
-            bitmap?.let {
-                imageView.setImageBitmap(it)
-                println("ImageView updated with bitmap")
-            } ?: println("Bitmap is null!")
-        },
-        modifier = Modifier.fillMaxSize()
-    )
+    fun runFrame() {
+        if (testMode) {
+            // В тестовом режиме просто рисуем паттерн
+            bus.ppu.drawTestPattern()
+            bus.ppu.updateBitmap()
+            return
+        }
+
+        var cycles = 0
+        while (cycles < 29781) {
+            val used = bus.cpu.executeInstruction()
+            cycles += used
+            bus.ppu.step(used * 3)
+        }
+        bus.ppu.updateBitmap()
+    }
+
+    fun getBitmap() = bus.ppu.bitmap
 }
