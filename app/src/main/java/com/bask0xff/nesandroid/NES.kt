@@ -7,7 +7,9 @@ class NES(context: Context) {
     private val bus: Bus
 
     init {
-        val romBytes = context.assets.open("test.nes").readBytes()
+        val romBytes = context.assets.open("nestest.nes").readBytes()
+        println("ROM loaded: size: ${romBytes.size} bytes")
+
         val cartridge = Cartridge(romBytes)
         bus = Bus(cartridge)
         bus.cpu.reset()

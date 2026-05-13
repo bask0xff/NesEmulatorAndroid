@@ -73,7 +73,28 @@ class CPU(private val bus: Bus) {
             0x00 -> brk()
             0xEA -> nop()
             0x40 -> rti()
+/*
+            // Unofficial NOPs (просто пропускают байт/байты)
+            0x80, 0x82, 0x89, 0xC2, 0xE2 -> { fetch(); 2 }           // NOP #imm (2 байта)
+            0x04, 0x44, 0x64             -> { fetch(); 3 }            // NOP zp
+            0x14, 0x34, 0x54, 0x74,
+            0xD4, 0xF4                   -> { fetch(); 4 }            // NOP zp,X
+            0x0C                         -> { fetch(); fetch(); 4 }   // NOP abs
+            0x1C, 0x3C, 0x5C, 0x7C,
+            0xDC, 0xFC                   -> { absoluteX(); 4 }        // NOP abs,X
+            0x1A, 0x3A, 0x5A, 0x7A,
+            0xDA, 0xFA                   -> 2                         // NOP implied
 
+// ISB/ISC — increment memory then SBC
+            0xF7 -> { val m = zeroPageX(); inc(m, 0); sbc(m, 6) }
+
+// SLO — ASL then ORA
+            0x03 -> { val m = indirectX(); asl(m, 0); ora(m, 8) }
+            0x13 -> { val m = indirectY(); asl(m, 0); ora(m, 8) }
+
+// RLA — ROL then AND
+            0x3F -> { val m = absoluteX(); rol(m, 0); and(m, 7) }
+*/
             // LDA
             0xA9 -> ldrA(immediate(), 2)
             0xA5 -> ldrA(zeroPage(), 3)
@@ -263,9 +284,15 @@ class CPU(private val bus: Bus) {
             0xF8 -> { setFlag(FLAG_D, true); 2 }
             0x78 -> { setFlag(FLAG_I, true); 2 }
 
+            0x1A, 0x3A, 0x5A, 0x7A, 0xDA, 0xFA -> 2
+            0x80, 0x82, 0x89, 0xC2, 0xE2 -> { fetch(); 2 }
+            0x04, 0x44, 0x64 -> { fetch(); 3 }
+            0x14, 0x34, 0x54, 0x74, 0xD4, 0xF4 -> { fetch(); 4 }
+            0x1C, 0x3C, 0x5C, 0x7C, 0xDC, 0xFC -> { absoluteX(); 4 }
+
             else -> {
                 println("Unimplemented Opcode: ${opcode.toString(16).uppercase()} at PC: ${(PC - 1).toString(16).uppercase()}")
-                0
+                2  // минимум 2 цикла чтобы CPU двигался вперёд
             }
         }
     }
@@ -335,9 +362,23 @@ class CPU(private val bus: Bus) {
         return bus.read((0x0100 + SP).toUShort()).toInt()
     }
 
-    private fun ldrA(mode: AddrResult, base: Int): Int { A = mode.address and 0xFF; setZN(A); return base + mode.extraCycles }
-    private fun ldrX(mode: AddrResult, base: Int): Int { X = mode.address and 0xFF; setZN(X); return base + mode.extraCycles }
-    private fun ldrY(mode: AddrResult, base: Int): Int { Y = mode.address and 0xFF; setZN(Y); return base + mode.extraCycles }
+    private fun ldrA(mode: AddrResult, base: Int): Int {
+        A = bus.read(mode.address.toUShort()).toInt() and 0xFF
+        setZN(A)
+        return base + mode.extraCycles
+    }
+
+    private fun ldrX(mode: AddrResult, base: Int): Int {
+        X = bus.read(mode.address.toUShort()).toInt() and 0xFF
+        setZN(X)
+        return base + mode.extraCycles
+    }
+
+    private fun ldrY(mode: AddrResult, base: Int): Int {
+        Y = bus.read(mode.address.toUShort()).toInt() and 0xFF
+        setZN(Y)
+        return base + mode.extraCycles
+    }
 
     private fun strA(mode: AddrResult, base: Int): Int { bus.write(mode.address.toUShort(), (A and 0xFF).toUByte()); return base }
     private fun strX(mode: AddrResult, base: Int): Int { bus.write(mode.address.toUShort(), (X and 0xFF).toUByte()); return base }

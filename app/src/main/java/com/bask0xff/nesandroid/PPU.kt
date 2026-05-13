@@ -37,6 +37,9 @@ class PPU(private val bus: Bus) {
     private val scanlineBuffer = IntArray(SCREEN_WIDTH)
     private val bgMask = BooleanArray(SCREEN_WIDTH)
 
+    private var debugFrameCount = 0
+    private var debugPpumaskLogged = false
+
     var debugSkipSprite0Hit = false
 
     val bitmap: Bitmap = Bitmap.createBitmap(SCREEN_WIDTH, SCREEN_HEIGHT, Bitmap.Config.ARGB_8888)
@@ -82,6 +85,15 @@ class PPU(private val bus: Bus) {
 
             if (scanlineCycle >= 341) {
                 scanlineCycle = 0
+
+                if (scanline == 0 && !debugPpumaskLogged) {
+                    println("PPU frame=$debugFrameCount ppuctrl=${ppuctrl.toString(16)} ppumask=${ppumask.toString(16)} v=${v.toString(16)}")
+                    debugPpumaskLogged = true
+                }
+                if (scanline == 240) {
+                    debugFrameCount++
+                    debugPpumaskLogged = false
+                }
 
                 if (scanline in 0..239) {
                     copyXFromTToV()
