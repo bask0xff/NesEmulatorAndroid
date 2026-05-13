@@ -1,135 +1,109 @@
 package com.bask0xff.nesandroid
 
-class Mapper1(private val cartridge: Cartridge) : Mapper {
+class Mapper1(private val cartridge: Cartridge) : Mapper() {
 
-    private var shiftRegister: Int = 0x10
-    private var control: Int = 0x0C
-    private var chrBank0: Int = 0
-    private var chrBank1: Int = 0
-    private var prgBank: Int = 0
-    private var shiftCount: Int = 0
-
-    private var prgBankOffset0: Int = 0
-    private var prgBankOffset1: Int = 0
-    private var chrBankOffset0: Int = 0
-    private var chrBankOffset1: Int = 0
-
-    override fun reset() {
-        shiftRegister = 0x10
-        control = 0x0C
-        chrBank0 = 0; chrBank1 = 0; prgBank = 0
-        shiftCount = 0
-        applyMirroring()
-        applyBanks()
-    }
+    private val prgRAM = ByteArray(32 * 1024)
+    private var prgBank = 0
+    private var chrBank = 0
+    private var shiftReg = 0
+    private var control = 0
+    private var shiftCount = 0
 
     override fun cpuRead(address: UShort): UByte {
         val addr = address.toInt()
         return when {
-            addr in 0x6000..0x7FFF -> cartridge.prgRAM[addr - 0x6000].toUByte()
-            addr in 0x8000..0xBFFF -> cartridge.prgROM[prgBankOffset0 + (addr - 0x8000)].toUByte()
-            addr in 0xC000..0xFFFF -> cartridge.prgROM[prgBankOffset1 + (addr - 0xC000)].toUByte()
+            addr < 0x8000 -> prgRAM[addr].toUByte()
+            addr <= 0x9FFF -> {
+                val bank = (control and 0x0C) shr 2
+                val index = when (bank) {
+                    0, 1 -> 0
+                    else -> prgBank
+                } * 0x4000 + (addr - 0x8000)
+                cartridge.prgROM[index].toUByte()
+            }
+            addr <= 0xBFFF -> {
+                val bank = (control and 0x0C) shr 2
+                val index = when (bank) {
+                    0 -> 0
+                    1 -> 1
+                    2, 3 -> prgBank
+                    else -> 0
+                } * 0x4000 + (addr - 0x8000)
+                cartridge.prgROM[index].toUByte()
+            }
+            addr <= 0xFFFF -> {
+                val bank = (control and 0x0C) shr 2
+                val index = when (bank) {
+                    0, 1 -> cartridge.prgROM.size / 0x4000 - 2
+                    2 -> prgBank
+                    3 -> cartridge.prgROM.size / 0x4000 - 1
+                    else -> 0
+                } * 0x4000 + (addr - 0xC000)
+                cartridge.prgROM[index].toUByte()
+            }
             else -> 0u
         }
     }
 
     override fun cpuWrite(address: UShort, value: UByte) {
         val addr = address.toInt()
-        val v = value.toInt()
-
-        if (addr in 0x6000..0x7FFF) {
-            cartridge.prgRAM[addr - 0x6000] = value.toByte()
-            return
-        }
-        if (addr < 0x8000) return
-
-        if ((v and 0x80) != 0) {
-            shiftRegister = 0x10
-            control = control or 0x0C
-            shiftCount = 0
-            applyBanks()
-            return
-        }
-
-        shiftRegister = (shiftRegister shr 1) or ((v and 1) shl 4)
-        shiftCount++
-
-        if (shiftCount == 5) {
-            when ((addr shr 13) and 0x03) {
-                0 -> { control = shiftRegister and 0x1F; applyMirroring() }
-                1 -> { chrBank0 = shiftRegister and 0x1F; applyMirroring() }
-                2 -> { chrBank1 = shiftRegister and 0x1F }
-                3 -> { prgBank = shiftRegister and 0x0F }
+        when {
+            addr <= 0x9FFF || addr in 0xA000..0xFFFF -> {
+                if ((value.toInt() and 0x80) != 0) {
+                    shiftCount = 0
+                    shiftReg = 0
+                    control = control or 0x0C
+                } else {
+                    shiftReg = (shiftReg shr 1) or ((value.toInt() and 1) shl 4)
+                    shiftCount++
+                    if (shiftCount == 5) {
+                        val reg = (addr shr 13) and 3
+                        when (reg) {
+                            0 -> {
+                                control = shiftReg
+                                when (shiftReg and 0x03) {
+                                    0 -> cartridge.mirroringMode = Mirroring.ONE_SCREEN_LOWER
+                                    1 -> cartridge.mirroringMode = Mirroring.ONE_SCREEN_UPPER
+                                    2 -> cartridge.mirroringMode = Mirroring.VERTICAL
+                                    3 -> cartridge.mirroringMode = Mirroring.HORIZONTAL
+                                }
+                            }
+                            1 -> chrBank = shiftReg
+                            2 -> prgBank = shiftReg
+                            3 -> {
+                                prgBank = shiftReg
+                                // TODO: Write protect
+                            }
+                        }
+                        shiftCount = 0
+                        shiftReg = 0
+                    }
+                }
             }
-            shiftRegister = 0x10
-            shiftCount = 0
-            applyBanks()
+            else -> prgRAM[addr] = value.toByte()
         }
     }
 
     override fun ppuRead(address: UShort): UByte {
         val addr = address.toInt()
-        if (addr < 0x2000) {
-            if (cartridge.chrBanks == 0) return cartridge.chrRAM[addr].toUByte()
-            return if ((control shr 4) and 1 == 0) {
-                cartridge.chrROM[(addr + (chrBank0 and 0x1E) * 0x1000) % cartridge.chrROM.size].toUByte()
-            } else {
-                if (addr < 0x1000)
-                    cartridge.chrROM[(addr + chrBankOffset0) % cartridge.chrROM.size].toUByte()
-                else
-                    cartridge.chrROM[(addr - 0x1000 + chrBankOffset1) % cartridge.chrROM.size].toUByte()
-            }
+        return if (addr < cartridge.chrROM.size) {
+            val bank = chrBank
+            val index = bank * 0x1000 + (addr % 0x1000)
+            cartridge.chrROM[index].toUByte()
+        } else {
+            0u
         }
-        return 0u
     }
 
     override fun ppuWrite(address: UShort, value: UByte) {
-        val addr = address.toInt()
-        if (addr < 0x2000 && cartridge.chrBanks == 0) {
-            cartridge.chrRAM[addr] = value.toByte()
-        }
+        // CHR-RAM not supported yet for Mapper1
     }
 
-    private fun applyMirroring() {
-        cartridge.setMirroring(when (control and 0x03) {
-            0 -> Mirroring.SINGLE_SCREEN_A
-            1 -> Mirroring.SINGLE_SCREEN_B
-            2 -> Mirroring.VERTICAL
-            else -> Mirroring.HORIZONTAL
-        })
-    }
-
-    private fun applyBanks() {
-        val chrMode = (control shr 4) and 1
-        if (chrMode == 0) {
-            chrBankOffset0 = (chrBank0 and 0x1E) * 0x1000
-            chrBankOffset1 = chrBankOffset0 + 0x1000
-        } else {
-            chrBankOffset0 = chrBank0 * 0x1000
-            chrBankOffset1 = chrBank1 * 0x1000
-        }
-        if (cartridge.chrBanks > 0) {
-            chrBankOffset0 %= cartridge.chrROM.size
-            chrBankOffset1 %= cartridge.chrROM.size
-        }
-
-        val prgBankCount = cartridge.prgROM.size / 0x4000
-        when ((control shr 2) and 0x03) {
-            0, 1 -> {
-                val bank = (prgBank and 0x0E) % maxOf(1, prgBankCount)
-                prgBankOffset0 = bank * 0x4000
-                prgBankOffset1 = prgBankOffset0 + 0x4000
-            }
-            2 -> {
-                prgBankOffset0 = 0
-                prgBankOffset1 = (prgBank % maxOf(1, prgBankCount)) * 0x4000
-            }
-            else -> {
-                prgBankOffset0 = (prgBank % maxOf(1, prgBankCount)) * 0x4000
-                prgBankOffset1 = (prgBankCount - 1) * 0x4000
-            }
-        }
-        prgBankOffset0 %= cartridge.prgROM.size
-        prgBankOffset1 %= cartridge.prgROM.size
+    override fun reset() {
+        prgBank = 0
+        chrBank = 0
+        shiftReg = 0
+        control = 0
+        shiftCount = 0
     }
 }

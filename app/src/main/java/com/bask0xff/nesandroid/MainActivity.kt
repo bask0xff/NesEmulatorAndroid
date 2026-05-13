@@ -39,16 +39,25 @@ class MainActivity : ComponentActivity() {
 fun NesScreen(nes: NES) {
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
     var frameNumber by remember { mutableIntStateOf(0) }
+    var lastTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     LaunchedEffect(Unit) {
         while (true) {
             withContext(Dispatchers.Default) {
-                println("Calling runFrame #${frameNumber + 1}")
+                val startTime = System.nanoTime()
                 nes.runFrame()
-                val bmp = nes.getBitmap()
-                bitmap = bmp
-                println("runFrame completed, bitmap is ${if (bmp != null) "not null" else "null"}")
+                val endTime = System.nanoTime()
+                val frameTime = (endTime - startTime) / 1_000_000
+
+                bitmap = nes.getBitmap()
                 frameNumber++
+
+                val now = System.currentTimeMillis()
+                if (now - lastTime >= 1000) {
+                    println("FPS: $frameNumber frames per second, avg frame time: ${frameTime}ms")
+                    frameNumber = 0
+                    lastTime = now
+                }
             }
             delay(16)
         }
@@ -62,11 +71,9 @@ fun NesScreen(nes: NES) {
             }
         },
         update = { imageView ->
-            println("AndroidView update called, bitmap is ${if (bitmap != null) "not null" else "null"}")
             bitmap?.let {
                 imageView.setImageBitmap(it)
-                println("ImageView updated with bitmap")
-            } ?: println("Bitmap is null, showing green background")
+            }
         },
         modifier = Modifier.fillMaxSize()
     )

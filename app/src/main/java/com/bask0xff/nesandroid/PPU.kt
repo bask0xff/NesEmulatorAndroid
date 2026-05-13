@@ -94,7 +94,7 @@ class PPU(private val bus: Bus) {
 
     fun reset() {
         ppuctrl = 0
-        ppumask = 0
+        ppumask = 0x1E  // Включаем фон и спрайты ПРИНУДИТЕЛЬНО
         ppustatus = 0
         oamaddr = 0
         v = 0; t = 0; fineX = 0
@@ -105,54 +105,23 @@ class PPU(private val bus: Bus) {
         ppuDataBuffer = 0
         frameBuffer.fill(0xFF000000.toInt())
 
-        // Инициализируем всю палитру нулями, потом игра сама запишет
+        // Инициализация палитры
         for (i in 0 until 32) {
             paletteRAM[i] = 0
         }
-
-        // Устанавливаем базовый цвет фона (чтобы не было чёрного)
-        paletteRAM[0] = 0x0F.toByte()  // Белый/серый цвет
-/*
-        // ВАЖНО: Инициализация палитры правильными значениями
-        // Стандартная палитра NES для фона
-        paletteRAM[0x00] = 0x0F.toByte()  // Universal background color
-        paletteRAM[0x01] = 0x00.toByte()
-        paletteRAM[0x02] = 0x10.toByte()
-        paletteRAM[0x03] = 0x20.toByte()
-        paletteRAM[0x04] = 0x0F.toByte()
-        paletteRAM[0x05] = 0x16.toByte()
-        paletteRAM[0x06] = 0x26.toByte()
-        paletteRAM[0x07] = 0x36.toByte()
-        paletteRAM[0x08] = 0x0F.toByte()
-        paletteRAM[0x09] = 0x12.toByte()
-        paletteRAM[0x0A] = 0x22.toByte()
-        paletteRAM[0x0B] = 0x32.toByte()
-        paletteRAM[0x0C] = 0x0F.toByte()
-        paletteRAM[0x0D] = 0x14.toByte()
-        paletteRAM[0x0E] = 0x24.toByte()
-        paletteRAM[0x0F] = 0x34.toByte()
-
-        // Sprite palette
-        paletteRAM[0x10] = 0x0F.toByte()
-        paletteRAM[0x11] = 0x01.toByte()
-        paletteRAM[0x12] = 0x11.toByte()
-        paletteRAM[0x13] = 0x21.toByte()
-        paletteRAM[0x14] = 0x0F.toByte()
-        paletteRAM[0x15] = 0x06.toByte()
-        paletteRAM[0x16] = 0x16.toByte()
-        paletteRAM[0x17] = 0x26.toByte()
-        paletteRAM[0x18] = 0x0F.toByte()
-        paletteRAM[0x19] = 0x08.toByte()
-        paletteRAM[0x1A] = 0x18.toByte()
-        paletteRAM[0x1B] = 0x28.toByte()
-        paletteRAM[0x1C] = 0x0F.toByte()
-        paletteRAM[0x1D] = 0x0A.toByte()
-        paletteRAM[0x1E] = 0x1A.toByte()
-        paletteRAM[0x1F] = 0x2A.toByte() */
+        paletteRAM[0] = 0x0F.toByte()
     }
+
+    private var lastPpumask = -1
 
     fun step(elapsedCycles: Int) {
         repeat(elapsedCycles) {
+            // Проверяем изменился ли ppumask
+            if (ppumask != lastPpumask) {
+                println("PPUMASK changed to: 0x${ppumask.toString(16)} (BG: ${(ppumask and 0x08) != 0}, SPR: ${(ppumask and 0x10) != 0})")
+                lastPpumask = ppumask
+            }
+
             if (scanline == 0 && scanlineCycle == 0) {
                 ppustatus = ppustatus and 0x3F
             }
@@ -390,40 +359,57 @@ class PPU(private val bus: Bus) {
             0x2000 -> {
                 ppuctrl = v8
                 t = (t and 0xF3FF) or ((v8 and 0x03) shl 10)
+                println("PPU WRITE: $$2000 = 0x${v8.toString(16)} (ppuctrl)")
             }
-            0x2001 -> ppumask = v8
+            0x2001 -> {
+                // Игнорируем попытки игры выключить рендеринг если он уже включен принудительно
+                if (ppumask != 0x1E || v8 != 0) {
+                    ppumask = v8
+                }
+                println("PPU WRITE: $$2001 = 0x${v8.toString(16)} (ppumask) - BG enable: ${(v8 and 0x08) != 0}, SPR enable: ${(v8 and 0x10) != 0}, final ppumask=0x${ppumask.toString(16)}")
+            }
             0x2002 -> {
                 ppustatus = ppustatus and 0x7F
                 scrollLatch = false
+                println("PPU READ: $$2002 (status read)")
             }
-            0x2003 -> oamaddr = v8
+            0x2003 -> {
+                oamaddr = v8
+                println("PPU WRITE: $$2003 = 0x${v8.toString(16)} (oamaddr)")
+            }
             0x2004 -> {
                 oam[oamaddr] = value.toByte()
                 oamaddr = (oamaddr + 1) and 0xFF
+                println("PPU WRITE: $$2004 = 0x${v8.toString(16)} (OAM data)")
             }
             0x2005 -> {
                 if (!scrollLatch) {
                     ppuscrollX = v8
                     fineX = v8 and 0x07
                     t = (t and 0xFFE0) or (v8 shr 3)
+                    println("PPU WRITE: $$2005 first = $v8 (scroll X)")
                 } else {
                     ppuscrollY = v8
                     t = (t and 0x8FFF) or ((v8 and 0x07) shl 12)
                     t = (t and 0xFC1F) or ((v8 and 0xF8) shl 2)
+                    println("PPU WRITE: $$2005 second = $v8 (scroll Y)")
                 }
                 scrollLatch = !scrollLatch
             }
             0x2006 -> {
                 if (!addrLatch) {
                     t = (t and 0x00FF) or ((v8 and 0x3F) shl 8)
+                    println("PPU WRITE: $$2006 first = 0x${v8.toString(16)} (PPU addr high)")
                 } else {
                     t = (t and 0xFF00) or v8
                     this.v = t
+                    println("PPU WRITE: $$2006 second = 0x${v8.toString(16)} (PPU addr low) -> v=0x${this.v.toString(16)}")
                 }
                 addrLatch = !addrLatch
             }
             0x2007 -> {
                 write(this.v.toUShort(), value)
+                println("PPU WRITE: $$2007 = 0x${v8.toString(16)} to VRAM addr 0x${this.v.toString(16)}")
                 this.v = (this.v + if ((ppuctrl and 0x04) != 0) 32 else 1) and 0x7FFF
             }
         }
@@ -568,12 +554,12 @@ class PPU(private val bus: Bus) {
     }
 
     fun updateBitmap() {
-        // Проверяем frameBuffer на наличие цветов
+        // Временно отключаем авто-тест
+        /*
         var hasColor = false
         for (i in 0 until minOf(1000, frameBuffer.size)) {
             if (frameBuffer[i] != 0xFF000000.toInt() && frameBuffer[i] != 0) {
                 hasColor = true
-                println("Found color in frameBuffer at $i: 0x${frameBuffer[i].toString(16)}")
                 break
             }
         }
@@ -582,10 +568,10 @@ class PPU(private val bus: Bus) {
             println("WARNING: frameBuffer has no colors, drawing test pattern")
             drawTestPattern()
         }
+        */
 
         try {
             bitmap.setPixels(frameBuffer, 0, SCREEN_WIDTH, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
-            println("Bitmap updated, first pixel: 0x${frameBuffer[0].toString(16)}")
         } catch (e: Exception) {
             println("Error updating bitmap: ${e.message}")
         }

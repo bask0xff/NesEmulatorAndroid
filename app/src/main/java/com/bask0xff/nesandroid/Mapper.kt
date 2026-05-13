@@ -1,9 +1,9 @@
 package com.bask0xff.nesandroid
 
-interface Mapper {
-    fun reset()
-    fun cpuRead(address: UShort): UByte
-    fun cpuWrite(address: UShort, value: UByte)
-    fun ppuRead(address: UShort): UByte
-    fun ppuWrite(address: UShort, value: UByte)
+abstract class Mapper {
+    abstract fun cpuRead(address: UShort): UByte
+    abstract fun cpuWrite(address: UShort, value: UByte)
+    abstract fun ppuRead(address: UShort): UByte
+    abstract fun ppuWrite(address: UShort, value: UByte)
+    abstract fun reset()
 }
