@@ -244,9 +244,11 @@ class PPU(private val bus: Bus) {
     private fun renderBackground() {
         if ((ppumask and 0x08) == 0) return
 
-        var renderV = v
-        var pixelsRendered = 0
+        // Заполняем строку цветом фона
+        val bgColor = nesPalette[paletteRAM[0].toInt() and 0x3F]
+        scanlineBuffer.fill(bgColor)
 
+        var renderV = v
         for (tile in 0 until 33) {
             val coarseX = renderV and 0x001F
             val coarseY = (renderV shr 5) and 0x001F
@@ -254,7 +256,6 @@ class PPU(private val bus: Bus) {
 
             val baseNTAddr = 0x2000 + (nameTable * 0x400)
             val tileAddr = baseNTAddr + (coarseY * 32) + coarseX
-
             val tileIndex = read(tileAddr.toUShort()).toInt()
             val fineY = (renderV shr 12) and 0x7
 
@@ -264,7 +265,6 @@ class PPU(private val bus: Bus) {
             val plane0 = read(patternAddr.toUShort()).toInt()
             val plane1 = read((patternAddr + 8).toUShort()).toInt()
 
-            // Получаем атрибуты для этого тайла
             val attrAddr = baseNTAddr + 0x3C0 + (coarseY / 4) * 8 + (coarseX / 4)
             val attrByte = read(attrAddr.toUShort()).toInt()
             val attrShift = ((coarseY % 4) / 2) * 2 + ((coarseX % 4) / 2)
@@ -279,19 +279,13 @@ class PPU(private val bus: Bus) {
                 val bit1 = (plane1 shr bitIndex) and 1
                 val colorIndex = bit0 or (bit1 shl 1)
 
-                if (colorIndex != 0) {
-                    bgMask[pixel] = true
-                    val color = getColorFromPalette(colorIndex, paletteIndex)
-                    scanlineBuffer[pixel] = color
-                    pixelsRendered++
-                }
+                if (colorIndex != 0) bgMask[pixel] = true
+                scanlineBuffer[pixel] = getColorFromPalette(colorIndex, paletteIndex)
             }
 
             renderV = incrementX(renderV)
         }
     }
-
-
 
     private fun debugVRAM() {
         if (debugFramesShown < 1) {
@@ -457,7 +451,7 @@ class PPU(private val bus: Bus) {
             addr < 0x2000 -> {
                 val result = bus.cartridge.ppuRead(addr.toUShort())
                 if (debugFrameCount < 2) {
-                    println("PPU read from CHR-ROM: addr=0x${addr.toString(16)}, result=0x${result.toInt().toString(16)}")
+                    //println("PPU read from CHR-ROM: addr=0x${addr.toString(16)}, result=0x${result.toInt().toString(16)}")
                 }
                 result
             }
@@ -568,27 +562,7 @@ class PPU(private val bus: Bus) {
     }
 
     fun updateBitmap() {
-        // Проверяем frameBuffer на наличие цветов
-        var hasColor = false
-        for (i in 0 until minOf(1000, frameBuffer.size)) {
-            if (frameBuffer[i] != 0xFF000000.toInt() && frameBuffer[i] != 0) {
-                hasColor = true
-                println("Found color in frameBuffer at $i: 0x${frameBuffer[i].toString(16)}")
-                break
-            }
-        }
-
-        if (!hasColor) {
-            println("WARNING: frameBuffer has no colors, drawing test pattern")
-            drawTestPattern()
-        }
-
-        try {
-            bitmap.setPixels(frameBuffer, 0, SCREEN_WIDTH, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
-            println("Bitmap updated, first pixel: 0x${frameBuffer[0].toString(16)}")
-        } catch (e: Exception) {
-            println("Error updating bitmap: ${e.message}")
-        }
+        bitmap.setPixels(frameBuffer, 0, SCREEN_WIDTH, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
     }
 
     // ====================== NES Палитра (64 цвета) ======================
