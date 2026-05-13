@@ -5,16 +5,23 @@ import android.content.Context
 class NES(context: Context) {
 
     private var bus: Bus
-    private var testMode = true  // Временный режим для отладки
+    private var testMode = false  // Временный режим для отладки
     fun isTestMode(): Boolean = testMode
 
     init {
         try {
-            val romBytes = context.assets.open("nestest.nes").readBytes()
+            val romBytes = context.assets.open("test.nes").readBytes()
             println("ROM loaded: size: ${romBytes.size} bytes")
             val cartridge = Cartridge(romBytes)
             bus = Bus(cartridge)
-            // testMode = false  // <-- ЗАКОММЕНТИРУЙТЕ ЭТУ СТРОКУ
+
+            // Отладка: проверяем первые байты CHR-ROM
+            for (i in 0 until 16) {
+                val chr = bus.cartridge.ppuRead(i.toUShort())
+                println("CHR-ROM[$i] = 0x${chr.toInt().toString(16)}")
+            }
+
+            testMode = false
         } catch (e: Exception) {
             println("Failed to load ROM: ${e.message}, using test mode")
             val emptyCartridge = Cartridge(byteArrayOf())
@@ -28,7 +35,6 @@ class NES(context: Context) {
 
     fun runFrame() {
         if (testMode) {
-            // В тестовом режиме просто рисуем паттерн
             bus.ppu.drawTestPattern()
             bus.ppu.updateBitmap()
             return
@@ -41,6 +47,7 @@ class NES(context: Context) {
             bus.ppu.step(used * 3)
         }
         bus.ppu.updateBitmap()
+        println("runFrame completed, testMode=false, bitmap updated") // Добавьте эту строку
     }
 
     fun getBitmap() = bus.ppu.bitmap

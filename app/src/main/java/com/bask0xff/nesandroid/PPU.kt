@@ -104,6 +104,51 @@ class PPU(private val bus: Bus) {
         scanlineCycle = 0
         ppuDataBuffer = 0
         frameBuffer.fill(0xFF000000.toInt())
+
+        // Инициализируем всю палитру нулями, потом игра сама запишет
+        for (i in 0 until 32) {
+            paletteRAM[i] = 0
+        }
+
+        // Устанавливаем базовый цвет фона (чтобы не было чёрного)
+        paletteRAM[0] = 0x0F.toByte()  // Белый/серый цвет
+/*
+        // ВАЖНО: Инициализация палитры правильными значениями
+        // Стандартная палитра NES для фона
+        paletteRAM[0x00] = 0x0F.toByte()  // Universal background color
+        paletteRAM[0x01] = 0x00.toByte()
+        paletteRAM[0x02] = 0x10.toByte()
+        paletteRAM[0x03] = 0x20.toByte()
+        paletteRAM[0x04] = 0x0F.toByte()
+        paletteRAM[0x05] = 0x16.toByte()
+        paletteRAM[0x06] = 0x26.toByte()
+        paletteRAM[0x07] = 0x36.toByte()
+        paletteRAM[0x08] = 0x0F.toByte()
+        paletteRAM[0x09] = 0x12.toByte()
+        paletteRAM[0x0A] = 0x22.toByte()
+        paletteRAM[0x0B] = 0x32.toByte()
+        paletteRAM[0x0C] = 0x0F.toByte()
+        paletteRAM[0x0D] = 0x14.toByte()
+        paletteRAM[0x0E] = 0x24.toByte()
+        paletteRAM[0x0F] = 0x34.toByte()
+
+        // Sprite palette
+        paletteRAM[0x10] = 0x0F.toByte()
+        paletteRAM[0x11] = 0x01.toByte()
+        paletteRAM[0x12] = 0x11.toByte()
+        paletteRAM[0x13] = 0x21.toByte()
+        paletteRAM[0x14] = 0x0F.toByte()
+        paletteRAM[0x15] = 0x06.toByte()
+        paletteRAM[0x16] = 0x16.toByte()
+        paletteRAM[0x17] = 0x26.toByte()
+        paletteRAM[0x18] = 0x0F.toByte()
+        paletteRAM[0x19] = 0x08.toByte()
+        paletteRAM[0x1A] = 0x18.toByte()
+        paletteRAM[0x1B] = 0x28.toByte()
+        paletteRAM[0x1C] = 0x0F.toByte()
+        paletteRAM[0x1D] = 0x0A.toByte()
+        paletteRAM[0x1E] = 0x1A.toByte()
+        paletteRAM[0x1F] = 0x2A.toByte() */
     }
 
     fun step(elapsedCycles: Int) {
@@ -170,36 +215,38 @@ class PPU(private val bus: Bus) {
         scanlineBuffer.fill(0)
         renderBackground()
         renderSprites()
-        System.arraycopy(scanlineBuffer, 0, frameBuffer, scanline * SCREEN_WIDTH, SCREEN_WIDTH)
 
-        // Отладка для первого кадра
-        if (scanline == SCREEN_HEIGHT - 1 && debugFramesShown < 3) {
-            var nonBlackCount = 0
-            for (i in 0 until SCREEN_WIDTH * SCREEN_HEIGHT) {
-                if (frameBuffer[i] != 0xFF000000.toInt()) {
-                    nonBlackCount++
+        // Отладка: проверяем scanlineBuffer перед копированием
+        if (scanline == 8 && debugFramesShown < 2) {
+            var nonZeroCount = 0
+            for (x in 0 until SCREEN_WIDTH) {
+                if (scanlineBuffer[x] != 0) {
+                    nonZeroCount++
+                    if (nonZeroCount <= 3) {
+                        println("scanlineBuffer[$x] = 0x${scanlineBuffer[x].toString(16)}")
+                    }
                 }
             }
-            println("Frame ${debugFramesShown + 1}: $nonBlackCount non-black pixels out of ${SCREEN_WIDTH * SCREEN_HEIGHT}")
-            println("  PPUMASK: 0x${ppumask.toString(16)} (bg enabled=${(ppumask and 0x08) != 0})")
-            println("  First pixel color: 0x${frameBuffer[0].toString(16)}")
+            println("scanlineBuffer has $nonZeroCount non-zero pixels")
+        }
+
+        // Копируем в frameBuffer
+        val startIndex = scanline * SCREEN_WIDTH
+        System.arraycopy(scanlineBuffer, 0, frameBuffer, startIndex, SCREEN_WIDTH)
+
+        // Отладка: проверяем frameBuffer после копирования
+        if (scanline == 8 && debugFramesShown < 2) {
+            println("frameBuffer[$startIndex] = 0x${frameBuffer[startIndex].toString(16)}")
             debugFramesShown++
         }
     }
 
     private fun renderBackground() {
-        // Если фон выключен - заливаем цветом из palette[0]
-        if ((ppumask and 0x08) == 0) {
-            val bgColor = nesPalette[paletteRAM[0].toInt() and 0x3F]
-            for (x in 0 until SCREEN_WIDTH) {
-                if (scanlineBuffer[x] == 0) { // Только если sprite не закрасил
-                    scanlineBuffer[x] = bgColor
-                }
-            }
-            return
-        }
+        if ((ppumask and 0x08) == 0) return
 
         var renderV = v
+        var pixelsRendered = 0
+
         for (tile in 0 until 33) {
             val coarseX = renderV and 0x001F
             val coarseY = (renderV shr 5) and 0x001F
@@ -217,11 +264,6 @@ class PPU(private val bus: Bus) {
             val plane0 = read(patternAddr.toUShort()).toInt()
             val plane1 = read((patternAddr + 8).toUShort()).toInt()
 
-            val attrAddr = baseNTAddr + 0x3C0 + (coarseY / 4) * 8 + (coarseX / 4)
-            val attrByte = read(attrAddr.toUShort()).toInt()
-            val attrShift = ((coarseY % 4) / 2) * 4 + ((coarseX % 4) / 2) * 2
-            val paletteIndex = (attrByte shr attrShift) and 0x03
-
             for (i in 0 until 8) {
                 val pixel = tile * 8 + i - fineX
                 if (pixel < 0 || pixel >= SCREEN_WIDTH) continue
@@ -233,14 +275,44 @@ class PPU(private val bus: Bus) {
 
                 if (colorIndex != 0) {
                     bgMask[pixel] = true
-                    scanlineBuffer[pixel] = getColorFromPalette(colorIndex, paletteIndex)
-                } else if (scanlineBuffer[pixel] == 0) {
-                    // Прозрачный пиксель - используем цвет фона
-                    scanlineBuffer[pixel] = nesPalette[paletteRAM[0].toInt() and 0x3F]
+                    val color = getColorFromPalette(colorIndex, 0)
+                    scanlineBuffer[pixel] = color
+                    pixelsRendered++
+
+                    // Отладка первых 5 пикселей
+                    if (debugFramesShown < 1 && pixelsRendered <= 5) {
+                        println("Pixel color: colorIndex=$colorIndex, color=0x${color.toString(16)}")
+                    }
                 }
             }
 
             renderV = incrementX(renderV)
+        }
+
+        if (debugFramesShown < 1) {
+            println("Background rendered $pixelsRendered pixels in scanline $scanline")
+        }
+    }
+
+
+    private fun debugVRAM() {
+        if (debugFramesShown < 1) {
+            println("=== VRAM DEBUG ===")
+            // Проверяем чтение из паттерн таблицы
+            val patternAddr = 0x0000
+            for (i in 0..4) {
+                val b0 = read((patternAddr + i).toUShort()).toInt()
+                val b1 = read((patternAddr + i + 8).toUShort()).toInt()
+                println("Pattern[$i]: b0=0x${b0.toString(16)}, b1=0x${b1.toString(16)}")
+            }
+
+            // Проверяем чтение из неймтейбла
+            val nameTableAddr = 0x2000
+            for (i in 0..4) {
+                val tile = read((nameTableAddr + i).toUShort()).toInt()
+                println("NameTable[$i]: tile=0x${tile.toString(16)}")
+            }
+            debugFramesShown++
         }
     }
 
@@ -387,7 +459,13 @@ class PPU(private val bus: Bus) {
     fun read(address: UShort): UByte {
         val addr = address.toInt() and 0x3FFF
         return when {
-            addr < 0x2000 -> bus.cartridge.ppuRead(addr.toUShort())
+            addr < 0x2000 -> {
+                val result = bus.cartridge.ppuRead(addr.toUShort())
+                if (debugFrameCount < 2) {
+                    println("PPU read from CHR-ROM: addr=0x${addr.toString(16)}, result=0x${result.toInt().toString(16)}")
+                }
+                result
+            }
             addr <= 0x3EFF -> {
                 val mirrored = mirrorVRAMAddress(addr)
                 vram[mirrored].toUByte()
@@ -472,26 +550,48 @@ class PPU(private val bus: Bus) {
 
     private fun getSpriteColor(colorIndex: Int, paletteIndex: Int): Int {
         val base = 0x11 + paletteIndex * 4
-        val idx = (base + colorIndex - 1) and 0x1F
-        return nesPalette[paletteRAM[idx].toInt() and 0x3F]
+        val paletteAddr = (base + colorIndex - 1) and 0x1F
+        val colorCode = paletteRAM[paletteAddr].toInt() and 0x3F
+        return nesPalette[colorCode]
     }
 
     private fun getColorFromPalette(colorIndex: Int, paletteIndex: Int): Int {
-        return if (colorIndex == 0) {
-            nesPalette[paletteRAM[0].toInt() and 0x3F]
+        // ВРЕМЕННО: возвращаем яркие цвета для теста
+        return when (colorIndex) {
+            1 -> 0xFFFF0000.toInt() // Красный
+            2 -> 0xFF00FF00.toInt() // Зелёный
+            3 -> 0xFFFFFF00.toInt() // Жёлтый
+            else -> 0xFF000000.toInt() // Чёрный
+        }
+
+        /* Оригинальный код закомментирован
+        if (colorIndex == 0) {
+            val paletteAddr = 0
+            val colorCode = paletteRAM[paletteAddr].toInt() and 0x3F
+            return nesPalette[colorCode]
         } else {
             val base = 1 + paletteIndex * 4
-            val idx = (base + colorIndex - 1) and 0x1F
-            nesPalette[paletteRAM[idx].toInt() and 0x3F]
+            val paletteAddr = (base + colorIndex - 1) and 0x1F
+            val colorCode = paletteRAM[paletteAddr].toInt() and 0x3F
+            return nesPalette[colorCode]
         }
+        */
     }
 
     fun updateBitmap() {
-        // Проверяем что bitmap не null и имеет правильный размер
-        if (bitmap.width != SCREEN_WIDTH || bitmap.height != SCREEN_HEIGHT) {
-            println("Warning: Bitmap size mismatch! Recreating...")
-            // Пересоздавать нельзя из-за val, но можно очистить
-            bitmap.eraseColor(0xFF000000.toInt())
+        // Проверяем frameBuffer на наличие цветов
+        var hasColor = false
+        for (i in 0 until minOf(1000, frameBuffer.size)) {
+            if (frameBuffer[i] != 0xFF000000.toInt() && frameBuffer[i] != 0) {
+                hasColor = true
+                println("Found color in frameBuffer at $i: 0x${frameBuffer[i].toString(16)}")
+                break
+            }
+        }
+
+        if (!hasColor) {
+            println("WARNING: frameBuffer has no colors, drawing test pattern")
+            drawTestPattern()
         }
 
         try {

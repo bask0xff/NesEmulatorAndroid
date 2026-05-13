@@ -38,15 +38,19 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun NesScreen(nes: NES) {
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var frameNumber by remember { mutableIntStateOf(0) }
 
-    // Запускаем эмуляцию в отдельном потоке
     LaunchedEffect(Unit) {
         while (true) {
             withContext(Dispatchers.Default) {
-                nes.runFrame()  // Вызываем runFrame у NES
-                bitmap = nes.getBitmap()
+                println("Calling runFrame #${frameNumber + 1}")
+                nes.runFrame()
+                val bmp = nes.getBitmap()
+                bitmap = bmp
+                println("runFrame completed, bitmap is ${if (bmp != null) "not null" else "null"}")
+                frameNumber++
             }
-            delay(16) // ~60 FPS
+            delay(16)
         }
     }
 
@@ -54,13 +58,15 @@ fun NesScreen(nes: NES) {
         factory = { context ->
             ImageView(context).apply {
                 scaleType = ImageView.ScaleType.FIT_XY
-                setBackgroundColor(0xFF00FF00.toInt()) // Зелёный фон для проверки
+                setBackgroundColor(0xFF00FF00.toInt())
             }
         },
         update = { imageView ->
+            println("AndroidView update called, bitmap is ${if (bitmap != null) "not null" else "null"}")
             bitmap?.let {
                 imageView.setImageBitmap(it)
-            }
+                println("ImageView updated with bitmap")
+            } ?: println("Bitmap is null, showing green background")
         },
         modifier = Modifier.fillMaxSize()
     )
