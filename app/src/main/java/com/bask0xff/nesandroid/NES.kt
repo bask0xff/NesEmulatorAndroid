@@ -5,7 +5,8 @@ import android.content.Context
 class NES(context: Context) {
 
     private var bus: Bus
-    private var testMode = false  // Временный режим для отладки
+    private var testMode = true  // Временный режим для отладки
+    fun isTestMode(): Boolean = testMode
 
     init {
         try {
@@ -13,10 +14,9 @@ class NES(context: Context) {
             println("ROM loaded: size: ${romBytes.size} bytes")
             val cartridge = Cartridge(romBytes)
             bus = Bus(cartridge)
-            testMode = false
+            // testMode = false  // <-- ЗАКОММЕНТИРУЙТЕ ЭТУ СТРОКУ
         } catch (e: Exception) {
             println("Failed to load ROM: ${e.message}, using test mode")
-            // Создаём пустую заглушку если ROM не загружен
             val emptyCartridge = Cartridge(byteArrayOf())
             bus = Bus(emptyCartridge)
             testMode = true

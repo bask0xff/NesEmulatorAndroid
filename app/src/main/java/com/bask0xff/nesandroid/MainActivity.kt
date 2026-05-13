@@ -23,6 +23,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         nes = NES(this)
+        println("NES testMode = ${nes.isTestMode()}")
 
         setContent {
             MaterialTheme {
