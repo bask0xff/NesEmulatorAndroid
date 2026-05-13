@@ -284,6 +284,23 @@ class CPU(private val bus: Bus) {
             0xF8 -> { setFlag(FLAG_D, true); 2 }
             0x78 -> { setFlag(FLAG_I, true); 2 }
 
+            // SRE = LSR память, потом EOR с A
+            0x47 -> { val m = zeroPage();  lsr(m, 0); eor(m, 5) }
+            0x4F -> { val m = absolute();  lsr(m, 0); eor(m, 6) }
+            0x53 -> { val m = indirectY(); lsr(m, 0); eor(m, 8) }
+            0x57 -> { val m = zeroPageX(); lsr(m, 0); eor(m, 6) }
+            0x5B -> { val m = absoluteY(); lsr(m, 0); eor(m, 7) }
+            0x5F -> { val m = absoluteX(); lsr(m, 0); eor(m, 7) }
+
+            // ISB = INC память, потом SBC
+            0xFB -> { val m = absoluteY(); inc(m, 0); sbc(m, 7) }
+            0xE3 -> { val m = indirectX(); inc(m, 0); sbc(m, 8) }
+            0xE7 -> { val m = zeroPage();  inc(m, 0); sbc(m, 5) }
+            0xEF -> { val m = absolute();  inc(m, 0); sbc(m, 6) }
+            0xF3 -> { val m = indirectY(); inc(m, 0); sbc(m, 8) }
+            0xF7 -> { val m = zeroPageX(); inc(m, 0); sbc(m, 6) }
+            0xFF -> { val m = absoluteX(); inc(m, 0); sbc(m, 7) }
+
             0x1A, 0x3A, 0x5A, 0x7A, 0xDA, 0xFA -> 2
             0x80, 0x82, 0x89, 0xC2, 0xE2 -> { fetch(); 2 }
             0x04, 0x44, 0x64 -> { fetch(); 3 }
@@ -540,7 +557,7 @@ class CPU(private val bus: Bus) {
     private fun rts(): Int {
         val low = pop()
         val high = pop()
-        PC = (high shl 8) or low
+        PC = ((high shl 8) or low) + 1
         return 6
     }
 
