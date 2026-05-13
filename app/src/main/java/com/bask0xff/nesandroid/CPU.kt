@@ -1,13 +1,13 @@
-package com.bask0xff.nesandroid
+import com.bask0xff.nesandroid.Bus
 
 class CPU(private val bus: Bus) {
 
-    var A: UByte = 0u
-    var X: UByte = 0u
-    var Y: UByte = 0u
-    var PC: UShort = 0u
-    var SP: UByte = 0u
-    var status: UByte = 0u
+    var A: Int = 0
+    var X: Int = 0
+    var Y: Int = 0
+    var PC: Int = 0
+    var SP: Int = 0
+    var status: Int = 0
 
     private var irqRequested = false
     private var nmiRequested = false
@@ -28,38 +28,34 @@ class CPU(private val bus: Bus) {
     }
 
     fun reset() {
-        A = 0u
-        X = 0u
-        Y = 0u
-        SP = 0xFDu
-        status = 0x24u
+        A = 0
+        X = 0
+        Y = 0
+        SP = 0xFD
+        status = 0x24
 
-        val low = bus.read(0xFFFCu)
-        val high = bus.read(0xFFFDu)
-        PC = (high.toUShort() shl 8) or low.toUShort()
+        val low = bus.read(0xFFFCu).toInt()
+        val high = bus.read(0xFFFDu).toInt()
+        PC = (high shl 8) or low
     }
 
     fun setFlag(bit: Int, value: Boolean) {
-        if (value)
-            status = status or (1u shl bit).toUByte()
-        else
-            status = status and (1u shl bit).inv().toUByte()
+        if (value) {
+            status = status or (1 shl bit)
+        } else {
+            status = status and (1 shl bit).inv()
+        }
     }
 
-    fun getFlag(bit: Int): Boolean = (status.toInt() and (1 shl bit)) != 0
+    fun getFlag(bit: Int): Boolean = (status and (1 shl bit)) != 0
 
-    private fun setZN(value: UByte) {
-        setFlag(FLAG_Z, value == 0u)
-        setFlag(FLAG_N, (value.toInt() and 0x80) != 0)
+    private fun setZN(value: Int) {
+        setFlag(FLAG_Z, (value and 0xFF) == 0)
+        setFlag(FLAG_N, (value and 0x80) != 0)
     }
 
-    fun requestIRQ() {
-        irqRequested = true
-    }
-
-    fun requestNMI() {
-        nmiRequested = true
-    }
+    fun requestIRQ() { irqRequested = true }
+    fun requestNMI() { nmiRequested = true }
 
     fun executeInstruction(): Int {
         if (nmiRequested) {
@@ -73,68 +69,67 @@ class CPU(private val bus: Bus) {
 
         val opcode = fetch()
 
-        return when (opcode.toInt()) {
-            // System
+        return when (opcode) {
             0x00 -> brk()
             0xEA -> nop()
             0x40 -> rti()
 
             // LDA
-            0xA9 -> ldr(ref A, immediate(), 2)
-            0xA5 -> ldr(ref A, zeroPage(), 3)
-            0xB5 -> ldr(ref A, zeroPageX(), 4)
-            0xAD -> ldr(ref A, absolute(), 4)
-            0xBD -> ldr(ref A, absoluteX(), 4)
-            0xB9 -> ldr(ref A, absoluteY(), 4)
-            0xA1 -> ldr(ref A, indirectX(), 6)
-            0xB1 -> ldr(ref A, indirectY(), 5)
+            0xA9 -> ldrA(immediate(), 2)
+            0xA5 -> ldrA(zeroPage(), 3)
+            0xB5 -> ldrA(zeroPageX(), 4)
+            0xAD -> ldrA(absolute(), 4)
+            0xBD -> ldrA(absoluteX(), 4)
+            0xB9 -> ldrA(absoluteY(), 4)
+            0xA1 -> ldrA(indirectX(), 6)
+            0xB1 -> ldrA(indirectY(), 5)
 
             // LDX
-            0xA2 -> ldr(ref X, immediate(), 2)
-            0xA6 -> ldr(ref X, zeroPage(), 3)
-            0xB6 -> ldr(ref X, zeroPageY(), 4)
-            0xAE -> ldr(ref X, absolute(), 4)
-            0xBE -> ldr(ref X, absoluteY(), 4)
+            0xA2 -> ldrX(immediate(), 2)
+            0xA6 -> ldrX(zeroPage(), 3)
+            0xB6 -> ldrX(zeroPageY(), 4)
+            0xAE -> ldrX(absolute(), 4)
+            0xBE -> ldrX(absoluteY(), 4)
 
             // LDY
-            0xA0 -> ldr(ref Y, immediate(), 2)
-            0xA4 -> ldr(ref Y, zeroPage(), 3)
-            0xB4 -> ldr(ref Y, zeroPageX(), 4)
-            0xAC -> ldr(ref Y, absolute(), 4)
-            0xBC -> ldr(ref Y, absoluteX(), 4)
+            0xA0 -> ldrY(immediate(), 2)
+            0xA4 -> ldrY(zeroPage(), 3)
+            0xB4 -> ldrY(zeroPageX(), 4)
+            0xAC -> ldrY(absolute(), 4)
+            0xBC -> ldrY(absoluteX(), 4)
 
             // STA
-            0x85 -> str(ref A, zeroPage(), 3)
-            0x95 -> str(ref A, zeroPageX(), 4)
-            0x8D -> str(ref A, absolute(), 4)
-            0x9D -> str(ref A, absoluteX(), 5)
-            0x99 -> str(ref A, absoluteY(), 5)
-            0x81 -> str(ref A, indirectX(), 6)
-            0x91 -> str(ref A, indirectY(), 6)
+            0x85 -> strA(zeroPage(), 3)
+            0x95 -> strA(zeroPageX(), 4)
+            0x8D -> strA(absolute(), 4)
+            0x9D -> strA(absoluteX(), 5)
+            0x99 -> strA(absoluteY(), 5)
+            0x81 -> strA(indirectX(), 6)
+            0x91 -> strA(indirectY(), 6)
 
             // STX
-            0x86 -> str(ref X, zeroPage(), 3)
-            0x96 -> str(ref X, zeroPageY(), 4)
-            0x8E -> str(ref X, absolute(), 4)
+            0x86 -> strX(zeroPage(), 3)
+            0x96 -> strX(zeroPageY(), 4)
+            0x8E -> strX(absolute(), 4)
 
             // STY
-            0x84 -> str(ref Y, zeroPage(), 3)
-            0x94 -> str(ref Y, zeroPageX(), 4)
-            0x8C -> str(ref Y, absolute(), 4)
+            0x84 -> strY(zeroPage(), 3)
+            0x94 -> strY(zeroPageX(), 4)
+            0x8C -> strY(absolute(), 4)
 
             // Transfer
-            0xAA -> trr(ref X, ref A, 2)
-            0xA8 -> trr(ref Y, ref A, 2)
-            0x8A -> trr(ref A, ref X, 2)
-            0x98 -> trr(ref A, ref Y, 2)
+            0xAA -> tax()
+            0xA8 -> tay()
+            0x8A -> txa()
+            0x98 -> tya()
 
             // Stack
-            0xBA -> tsx(2)
-            0x9A -> txs(2)
-            0x48 -> pha(3)
-            0x08 -> php(3)
-            0x68 -> pla(4)
-            0x28 -> plp(4)
+            0xBA -> tsx()
+            0x9A -> txs()
+            0x48 -> pha()
+            0x08 -> php()
+            0x68 -> pla()
+            0x28 -> plp()
 
             // Logical
             0x29 -> and(immediate(), 2)
@@ -209,231 +204,194 @@ class CPU(private val bus: Bus) {
             0xF6 -> inc(zeroPageX(), 6)
             0xEE -> inc(absolute(), 6)
             0xFE -> inc(absoluteX(), 7)
-            0xE8 -> inr(ref X, 2)
-            0xC8 -> inr(ref Y, 2)
-
+            0xE8 -> inx()
+            0xC8 -> iny()
             0xC6 -> dec(zeroPage(), 5)
             0xD6 -> dec(zeroPageX(), 6)
             0xCE -> dec(absolute(), 6)
             0xDE -> dec(absoluteX(), 7)
-            0xCA -> der(ref X, 2)
-            0x88 -> der(ref Y, 2)
+            0xCA -> dex()
+            0x88 -> dey()
 
             // Shifts
-            0x0A -> asl(accumulator(), 2)
+            0x0A -> aslAcc()
             0x06 -> asl(zeroPage(), 5)
             0x16 -> asl(zeroPageX(), 6)
             0x0E -> asl(absolute(), 6)
             0x1E -> asl(absoluteX(), 7)
 
-            0x4A -> lsr(accumulator(), 2)
+            0x4A -> lsrAcc()
             0x46 -> lsr(zeroPage(), 5)
             0x56 -> lsr(zeroPageX(), 6)
             0x4E -> lsr(absolute(), 6)
             0x5E -> lsr(absoluteX(), 7)
 
-            0x2A -> rol(accumulator(), 2)
+            0x2A -> rolAcc()
             0x26 -> rol(zeroPage(), 5)
             0x36 -> rol(zeroPageX(), 6)
             0x2E -> rol(absolute(), 6)
             0x3E -> rol(absoluteX(), 7)
 
-            0x6A -> ror(accumulator(), 2)
+            0x6A -> rorAcc()
             0x66 -> ror(zeroPage(), 5)
             0x76 -> ror(zeroPageX(), 6)
             0x6E -> ror(absolute(), 6)
             0x7E -> ror(absoluteX(), 7)
 
-            // Jump / Subroutine
-            0x4C -> jmp(absolute(), 3)
-            0x6C -> jmp(indirect(), 5)
+            // Jump / Call
+            0x4C -> jmp(absolute())
+            0x6C -> jmp(indirect())
             0x20 -> jsr()
             0x60 -> rts()
 
             // Branches
-            0x90 -> bif(!getFlag(FLAG_C), relative(), 2)
-            0xB0 -> bif(getFlag(FLAG_C), relative(), 2)
-            0xF0 -> bif(getFlag(FLAG_Z), relative(), 2)
-            0x30 -> bif(getFlag(FLAG_N), relative(), 2)
-            0xD0 -> bif(!getFlag(FLAG_Z), relative(), 2)
-            0x10 -> bif(!getFlag(FLAG_N), relative(), 2)
-            0x50 -> bif(!getFlag(FLAG_V), relative(), 2)
-            0x70 -> bif(getFlag(FLAG_V), relative(), 2)
+            0x90 -> branch(!getFlag(FLAG_C))
+            0xB0 -> branch(getFlag(FLAG_C))
+            0xF0 -> branch(getFlag(FLAG_Z))
+            0x30 -> branch(getFlag(FLAG_N))
+            0xD0 -> branch(!getFlag(FLAG_Z))
+            0x10 -> branch(!getFlag(FLAG_N))
+            0x50 -> branch(!getFlag(FLAG_V))
+            0x70 -> branch(getFlag(FLAG_V))
 
             // Flags
-            0x18 -> fsc(FLAG_C, false, 2)
-            0xD8 -> fsc(FLAG_D, false, 2)
-            0x58 -> fsc(FLAG_I, false, 2)
-            0xB8 -> fsc(FLAG_V, false, 2)
-            0x38 -> fsc(FLAG_C, true, 2)
-            0xF8 -> fsc(FLAG_D, true, 2)
-            0x78 -> fsc(FLAG_I, true, 2)
+            0x18 -> { setFlag(FLAG_C, false); 2 }
+            0xD8 -> { setFlag(FLAG_D, false); 2 }
+            0x58 -> { setFlag(FLAG_I, false); 2 }
+            0xB8 -> { setFlag(FLAG_V, false); 2 }
+            0x38 -> { setFlag(FLAG_C, true); 2 }
+            0xF8 -> { setFlag(FLAG_D, true); 2 }
+            0x78 -> { setFlag(FLAG_I, true); 2 }
 
             else -> {
-                println("Unimplemented Opcode: ${opcode.toString(16).uppercase()} at PC: ${(PC - 1u).toString(16).uppercase()}")
-                throw NotImplementedError("Opcode 0x${opcode.toString(16).uppercase()}")
+                println("Unimplemented Opcode: ${opcode.toString(16).uppercase()} at PC: ${(PC - 1).toString(16).uppercase()}")
+                0
             }
         }
     }
 
-    private fun fetch(): UByte = bus.read(PC++)
+    private fun fetch(): Int = bus.read(PC++.toUShort()).toInt() and 0xFF
 
-    private fun fetch16(): UShort {
+    private fun fetch16(): Int {
         val low = fetch()
         val high = fetch()
-        return (high.toUShort() shl 8) or low.toUShort()
+        return (high shl 8) or low
     }
 
-    private data class AddrResult(val address: UShort, val extraCycles: Int = 0)
+    private data class AddrResult(val address: Int, val extraCycles: Int = 0)
 
-    private fun implied() = AddrResult(0u)
-    private fun accumulator() = AddrResult(0u)
     private fun immediate() = AddrResult(PC++)
-    private fun zeroPage() = AddrResult(fetch().toUShort())
-    private fun zeroPageX() = AddrResult((fetch() + X).toUShort())
-    private fun zeroPageY() = AddrResult((fetch() + Y).toUShort())
+    private fun zeroPage() = AddrResult(fetch())
+    private fun zeroPageX() = AddrResult((fetch() + X) and 0xFF)
+    private fun zeroPageY() = AddrResult((fetch() + Y) and 0xFF)
     private fun absolute() = AddrResult(fetch16())
 
     private fun absoluteX(): AddrResult {
         val base = fetch16()
-        val eff = base + X.toUShort()
-        return AddrResult(eff, if (hasPageCross(base, eff)) 1 else 0)
+        val eff = base + X
+        return AddrResult(eff and 0xFFFF, if ((base and 0xFF00) != (eff and 0xFF00)) 1 else 0)
     }
 
     private fun absoluteY(): AddrResult {
         val base = fetch16()
-        val eff = base + Y.toUShort()
-        return AddrResult(eff, if (hasPageCross(base, eff)) 1 else 0)
+        val eff = base + Y
+        return AddrResult(eff and 0xFFFF, if ((base and 0xFF00) != (eff and 0xFF00)) 1 else 0)
     }
 
     private fun indirectX(): AddrResult {
         val zp = fetch()
-        val ptr = (zp + X).toUByte()
-        val low = bus.read(ptr.toUShort())
-        val high = bus.read((ptr + 1u).toUShort())
-        return AddrResult((high.toUShort() shl 8) or low.toUShort())
+        val ptr = (zp + X) and 0xFF
+        val low = bus.read(ptr.toUShort()).toInt()
+        val high = bus.read(((ptr + 1) and 0xFF).toUShort()).toInt()
+        return AddrResult((high shl 8) or low)
     }
 
     private fun indirectY(): AddrResult {
         val zp = fetch()
-        val base = (bus.read((zp + 1u).toUShort()).toUShort() shl 8) or bus.read(zp.toUShort()).toUShort()
-        val eff = base + Y.toUShort()
-        return AddrResult(eff, if (hasPageCross(base, eff)) 1 else 0)
+        val baseLow = bus.read(zp.toUShort()).toInt()
+        val baseHigh = bus.read(((zp + 1) and 0xFF).toUShort()).toInt()
+        val base = (baseHigh shl 8) or baseLow
+        val eff = base + Y
+        return AddrResult(eff and 0xFFFF, if ((base and 0xFF00) != (eff and 0xFF00)) 1 else 0)
     }
 
     private fun indirect(): AddrResult {
         val ptr = fetch16()
-        val low = bus.read(ptr)
-        val high = if ((ptr and 0x00FFu) == 0x00FFu)
-            bus.read(ptr and 0xFF00u) else bus.read(ptr + 1u)
-        return AddrResult((high.toUShort() shl 8) or low.toUShort())
+        val low = bus.read(ptr.toUShort()).toInt()
+        val high = if ((ptr and 0x00FF) == 0x00FF)
+            bus.read((ptr and 0xFF00).toUShort()).toInt()
+        else
+            bus.read((ptr + 1).toUShort()).toInt()
+        return AddrResult((high shl 8) or low)
     }
 
-    private fun relative(): AddrResult {
-        val offset = fetch().toByte()
-        val target = PC + offset.toUShort()
-        return AddrResult(target, if (hasPageCross(PC - 1u, target)) 1 else 0)
+    private fun push(value: Int) {
+        bus.write((0x0100 + SP).toUShort(), (value and 0xFF).toUByte())
+        SP = (SP - 1) and 0xFF
     }
 
-    private fun hasPageCross(base: UShort, eff: UShort): Boolean =
-        (base and 0xFF00u) != (eff and 0xFF00u)
-
-    private fun push(value: UByte) {
-        bus.write(0x0100u + SP.toUShort(), value)
-        SP = (SP - 1u) and 0xFFu
+    private fun pop(): Int {
+        SP = (SP + 1) and 0xFF
+        return bus.read((0x0100 + SP).toUShort()).toInt()
     }
 
-    private fun pop(): UByte {
-        SP = (SP + 1u) and 0xFFu
-        return bus.read(0x0100u + SP.toUShort())
-    }
+    private fun ldrA(mode: AddrResult, base: Int): Int { A = mode.address and 0xFF; setZN(A); return base + mode.extraCycles }
+    private fun ldrX(mode: AddrResult, base: Int): Int { X = mode.address and 0xFF; setZN(X); return base + mode.extraCycles }
+    private fun ldrY(mode: AddrResult, base: Int): Int { Y = mode.address and 0xFF; setZN(Y); return base + mode.extraCycles }
 
-    // ==================== Instructions ====================
+    private fun strA(mode: AddrResult, base: Int): Int { bus.write(mode.address.toUShort(), (A and 0xFF).toUByte()); return base }
+    private fun strX(mode: AddrResult, base: Int): Int { bus.write(mode.address.toUShort(), (X and 0xFF).toUByte()); return base }
+    private fun strY(mode: AddrResult, base: Int): Int { bus.write(mode.address.toUShort(), (Y and 0xFF).toUByte()); return base }
 
-    private fun ldr(reg: UByte, mode: AddrResult, baseCycles: Int): Int {
-        val value = bus.read(mode.address)
-        when (reg) {
-            A -> A = value
-            X -> X = value
-            Y -> Y = value
-        }
-        setZN(value)
-        return baseCycles + mode.extraCycles
-    }
+    private fun tax(): Int { X = A; setZN(X); return 2 }
+    private fun tay(): Int { Y = A; setZN(Y); return 2 }
+    private fun txa(): Int { A = X; setZN(A); return 2 }
+    private fun tya(): Int { A = Y; setZN(A); return 2 }
 
-    private fun str(reg: UByte, mode: AddrResult, baseCycles: Int): Int {
-        val value = when (reg) {
-            A -> A
-            X -> X
-            Y -> Y
-            else -> 0u
-        }
-        bus.write(mode.address, value)
-        return baseCycles
-    }
+    private fun tsx(): Int { X = SP; setZN(X); return 2 }
+    private fun txs(): Int { SP = X; return 2 }
+    private fun pha(): Int { push(A); return 3 }
+    private fun php(): Int { push(status or 0x30); return 3 }
+    private fun pla(): Int { A = pop(); setZN(A); return 4 }
+    private fun plp(): Int { status = pop() or 0x20; return 4 }
 
-    private fun trr(to: UByte, from: UByte, cycles: Int): Int {
-        when (to) {
-            A -> A = from
-            X -> X = from
-            Y -> Y = from
-        }
-        setZN(to)
-        return cycles
-    }
-
-    private fun tsx(cycles: Int): Int { X = SP; setZN(X); return cycles }
-    private fun txs(cycles: Int): Int { SP = X; return cycles }
-    private fun pha(cycles: Int): Int { push(A); return cycles }
-    private fun php(cycles: Int): Int {
-        push(status or (1u shl FLAG_B).toUByte() or (1u shl FLAG_U).toUByte())
-        return cycles
-    }
-    private fun pla(cycles: Int): Int { A = pop(); setZN(A); return cycles }
-    private fun plp(cycles: Int): Int {
-        status = pop()
-        setFlag(FLAG_U, true)
-        setFlag(FLAG_B, false)
-        return cycles
-    }
-
-    private fun and(mode: AddrResult, base: Int): Int { A = A and bus.read(mode.address); setZN(A); return base + mode.extraCycles }
-    private fun eor(mode: AddrResult, base: Int): Int { A = A xor bus.read(mode.address); setZN(A); return base + mode.extraCycles }
-    private fun ora(mode: AddrResult, base: Int): Int { A = A or bus.read(mode.address); setZN(A); return base + mode.extraCycles }
+    private fun and(mode: AddrResult, base: Int): Int { A = A and bus.read(mode.address.toUShort()).toInt(); setZN(A); return base + mode.extraCycles }
+    private fun eor(mode: AddrResult, base: Int): Int { A = A xor bus.read(mode.address.toUShort()).toInt(); setZN(A); return base + mode.extraCycles }
+    private fun ora(mode: AddrResult, base: Int): Int { A = A or bus.read(mode.address.toUShort()).toInt(); setZN(A); return base + mode.extraCycles }
 
     private fun bit(mode: AddrResult, base: Int): Int {
-        val value = bus.read(mode.address)
-        setFlag(FLAG_Z, (A and value) == 0u)
-        setFlag(FLAG_N, (value.toInt() and 0x80) != 0)
-        setFlag(FLAG_V, (value.toInt() and 0x40) != 0)
+        val value = bus.read(mode.address.toUShort()).toInt()
+        setFlag(FLAG_Z, (A and value) == 0)
+        setFlag(FLAG_N, (value and 0x80) != 0)
+        setFlag(FLAG_V, (value and 0x40) != 0)
         return base + mode.extraCycles
     }
 
     private fun adc(mode: AddrResult, base: Int): Int {
-        val m = bus.read(mode.address).toInt()
-        val sum = A.toInt() + m + if (getFlag(FLAG_C)) 1 else 0
+        val m = bus.read(mode.address.toUShort()).toInt()
+        val sum = A + m + if (getFlag(FLAG_C)) 1 else 0
         setFlag(FLAG_C, sum > 0xFF)
         setFlag(FLAG_Z, (sum and 0xFF) == 0)
         setFlag(FLAG_N, (sum and 0x80) != 0)
-        setFlag(FLAG_V, ((A.toInt() xor m) and (A.toInt() xor sum) and 0x80) != 0)
-        A = (sum and 0xFF).toUByte()
+        setFlag(FLAG_V, ((A xor m) and (A xor sum) and 0x80) != 0)
+        A = sum and 0xFF
         return base + mode.extraCycles
     }
 
     private fun sbc(mode: AddrResult, base: Int): Int {
-        val m = (bus.read(mode.address) xor 0xFFu).toInt()
-        val sum = A.toInt() + m + if (getFlag(FLAG_C)) 1 else 0
+        val m = (bus.read(mode.address.toUShort()).toInt() xor 0xFF)
+        val sum = A + m + if (getFlag(FLAG_C)) 1 else 0
         setFlag(FLAG_C, sum > 0xFF)
         setFlag(FLAG_Z, (sum and 0xFF) == 0)
         setFlag(FLAG_N, (sum and 0x80) != 0)
-        setFlag(FLAG_V, ((A.toInt() xor sum) and (m xor sum) and 0x80) != 0)
-        A = (sum and 0xFF).toUByte()
+        setFlag(FLAG_V, ((A xor sum) and (m xor sum) and 0x80) != 0)
+        A = sum and 0xFF
         return base + mode.extraCycles
     }
 
-    private fun cpr(reg: UByte, mode: AddrResult, base: Int): Int {
-        val m = bus.read(mode.address)
-        val temp = reg.toInt() - m.toInt()
+    private fun cpr(reg: Int, mode: AddrResult, base: Int): Int {
+        val m = bus.read(mode.address.toUShort()).toInt()
+        val temp = reg - m
         setFlag(FLAG_C, reg >= m)
         setFlag(FLAG_Z, (temp and 0xFF) == 0)
         setFlag(FLAG_N, (temp and 0x80) != 0)
@@ -441,76 +399,99 @@ class CPU(private val bus: Bus) {
     }
 
     private fun inc(mode: AddrResult, base: Int): Int {
-        val result = (bus.read(mode.address) + 1u)
-        bus.write(mode.address, result)
+        val result = (bus.read(mode.address.toUShort()).toInt() + 1) and 0xFF
+        bus.write(mode.address.toUShort(), result.toUByte())
         setZN(result)
         return base
     }
 
     private fun dec(mode: AddrResult, base: Int): Int {
-        val result = (bus.read(mode.address) - 1u)
-        bus.write(mode.address, result)
+        val result = (bus.read(mode.address.toUShort()).toInt() - 1) and 0xFF
+        bus.write(mode.address.toUShort(), result.toUByte())
         setZN(result)
         return base
     }
 
-    private fun inr(reg: UByte, cycles: Int): Int {
-        when (reg) { A -> A++ ; X -> X++ ; Y -> Y++ }
-        setZN(reg)
-        return cycles
-    }
+    private fun inx(): Int { X = (X + 1) and 0xFF; setZN(X); return 2 }
+    private fun iny(): Int { Y = (Y + 1) and 0xFF; setZN(Y); return 2 }
+    private fun dex(): Int { X = (X - 1) and 0xFF; setZN(X); return 2 }
+    private fun dey(): Int { Y = (Y - 1) and 0xFF; setZN(Y); return 2 }
 
-    private fun der(reg: UByte, cycles: Int): Int {
-        when (reg) { A -> A-- ; X -> X-- ; Y -> Y-- }
-        setZN(reg)
-        return cycles
+    private fun aslAcc(): Int {
+        setFlag(FLAG_C, (A and 0x80) != 0)
+        A = (A shl 1) and 0xFF
+        setZN(A)
+        return 2
     }
 
     private fun asl(mode: AddrResult, base: Int): Int {
-        val value = if (mode.address == 0u) A else bus.read(mode.address)
-        setFlag(FLAG_C, (value.toInt() and 0x80) != 0)
-        val result = (value.toInt() shl 1).toUByte()
-        if (mode.address == 0u) A = result else bus.write(mode.address, result)
+        val value = bus.read(mode.address.toUShort()).toInt()
+        setFlag(FLAG_C, (value and 0x80) != 0)
+        val result = (value shl 1) and 0xFF
+        bus.write(mode.address.toUShort(), result.toUByte())
         setZN(result)
         return base
+    }
+
+    private fun lsrAcc(): Int {
+        setFlag(FLAG_C, (A and 0x01) != 0)
+        A = A shr 1
+        setZN(A)
+        return 2
     }
 
     private fun lsr(mode: AddrResult, base: Int): Int {
-        val value = if (mode.address == 0u) A else bus.read(mode.address)
-        setFlag(FLAG_C, (value.toInt() and 0x01) != 0)
-        val result = (value.toInt() shr 1).toUByte()
-        if (mode.address == 0u) A = result else bus.write(mode.address, result)
+        val value = bus.read(mode.address.toUShort()).toInt()
+        setFlag(FLAG_C, (value and 0x01) != 0)
+        val result = value shr 1
+        bus.write(mode.address.toUShort(), result.toUByte())
         setZN(result)
         return base
+    }
+
+    private fun rolAcc(): Int {
+        val oldC = getFlag(FLAG_C)
+        setFlag(FLAG_C, (A and 0x80) != 0)
+        A = ((A shl 1) or (if (oldC) 1 else 0)) and 0xFF
+        setZN(A)
+        return 2
     }
 
     private fun rol(mode: AddrResult, base: Int): Int {
-        val value = if (mode.address == 0u) A else bus.read(mode.address)
+        val value = bus.read(mode.address.toUShort()).toInt()
         val oldC = getFlag(FLAG_C)
-        setFlag(FLAG_C, (value.toInt() and 0x80) != 0)
-        val result = ((value.toInt() shl 1) or (if (oldC) 1 else 0)).toUByte()
-        if (mode.address == 0u) A = result else bus.write(mode.address, result)
+        setFlag(FLAG_C, (value and 0x80) != 0)
+        val result = ((value shl 1) or (if (oldC) 1 else 0)) and 0xFF
+        bus.write(mode.address.toUShort(), result.toUByte())
         setZN(result)
         return base
+    }
+
+    private fun rorAcc(): Int {
+        val oldC = getFlag(FLAG_C)
+        setFlag(FLAG_C, (A and 0x01) != 0)
+        A = ((A shr 1) or (if (oldC) 0x80 else 0)) and 0xFF
+        setZN(A)
+        return 2
     }
 
     private fun ror(mode: AddrResult, base: Int): Int {
-        val value = if (mode.address == 0u) A else bus.read(mode.address)
+        val value = bus.read(mode.address.toUShort()).toInt()
         val oldC = getFlag(FLAG_C)
-        setFlag(FLAG_C, (value.toInt() and 0x01) != 0)
-        val result = ((value.toInt() shr 1) or (if (oldC) 0x80 else 0)).toUByte()
-        if (mode.address == 0u) A = result else bus.write(mode.address, result)
+        setFlag(FLAG_C, (value and 0x01) != 0)
+        val result = ((value shr 1) or (if (oldC) 0x80 else 0)) and 0xFF
+        bus.write(mode.address.toUShort(), result.toUByte())
         setZN(result)
         return base
     }
 
-    private fun jmp(mode: AddrResult, cycles: Int): Int { PC = mode.address; return cycles }
+    private fun jmp(mode: AddrResult): Int { PC = mode.address; return 3 }
 
     private fun jsr(): Int {
         val target = fetch16()
-        val returnAddr = (PC - 1u)
-        push((returnAddr shr 8).toUByte())
-        push(returnAddr.toUByte())
+        val ret = PC - 1
+        push(ret shr 8)
+        push(ret and 0xFF)
         PC = target
         return 6
     }
@@ -518,73 +499,64 @@ class CPU(private val bus: Bus) {
     private fun rts(): Int {
         val low = pop()
         val high = pop()
-        PC = ((high.toUShort() shl 8) or low.toUShort()) + 1u
+        PC = (high shl 8) or low
         return 6
     }
 
-    private fun bif(condition: Boolean, mode: AddrResult, base: Int): Int {
+    private fun branch(condition: Boolean): Int {
         if (condition) {
-            PC = mode.address
-            return base + 1 + mode.extraCycles
+            val offset = fetch().toByte()
+            PC = PC + offset
+            return 3
         }
-        return base
-    }
-
-    private fun fsc(bit: Int, value: Boolean, cycles: Int): Int {
-        setFlag(bit, value)
-        return cycles
+        fetch()
+        return 2
     }
 
     private fun nop() = 2
 
     private fun brk(): Int {
         PC++
-        push((PC shr 8).toUByte())
-        push(PC.toUByte())
-        push(status or (1u shl FLAG_B).toUByte() or (1u shl FLAG_U).toUByte())
+        push(PC shr 8)
+        push(PC and 0xFF)
+        push(status or 0x30)
         setFlag(FLAG_I, true)
-        val low = bus.read(0xFFFEu)
-        val high = bus.read(0xFFFFu)
-        PC = (high.toUShort() shl 8) or low.toUShort()
+        val low = bus.read(0xFFFEu).toInt()
+        val high = bus.read(0xFFFFu).toInt()
+        PC = (high shl 8) or low
         return 7
     }
 
     private fun rti(): Int {
-        status = pop()
-        setFlag(FLAG_U, true)
-        setFlag(FLAG_B, false)
+        status = pop() or 0x20
         val low = pop()
         val high = pop()
-        PC = (high.toUShort() shl 8) or low.toUShort()
+        PC = (high shl 8) or low
         return 6
     }
 
     private fun irq(): Int {
         if (!getFlag(FLAG_I)) {
-            push((PC shr 8).toUByte())
-            push(PC.toUByte())
-            setFlag(FLAG_B, false)
-            setFlag(FLAG_U, true)
+            push(PC shr 8)
+            push(PC and 0xFF)
             push(status)
             setFlag(FLAG_I, true)
-            val low = bus.read(0xFFFEu)
-            val high = bus.read(0xFFFFu)
-            PC = (high.toUShort() shl 8) or low.toUShort()
+            val low = bus.read(0xFFFEu).toInt()
+            val high = bus.read(0xFFFFu).toInt()
+            PC = (high shl 8) or low
             return 7
         }
         return 0
     }
 
     private fun nmi(): Int {
-        push((PC shr 8).toUByte())
-        push(PC.toUByte())
-        setFlag(FLAG_B, false)
-        setFlag(FLAG_U, true)
+        push(PC shr 8)
+        push(PC and 0xFF)
         push(status)
         setFlag(FLAG_I, true)
-        val low = bus.read(0xFFFAu)
-        val high = bus.read(0xFFFBu)
-        PC = (high.toUShort() shl 8) or low.toUShort()
+        val low = bus.read(0xFFFAu).toInt()
+        val high = bus.read(0xFFFBu).toInt()
+        PC = (high shl 8) or low
         return 7
     }
 }
