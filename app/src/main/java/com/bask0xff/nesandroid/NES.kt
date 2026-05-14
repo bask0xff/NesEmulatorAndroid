@@ -1,30 +1,30 @@
-// NES.kt
 package com.bask0xff.nesandroid
 
 import android.content.Context
 
 class NES(context: Context) {
 
-    private val bus: Bus
+    private val _bus: Bus
+    val bus: Bus get() = _bus
 
     init {
         val romBytes = context.assets.open("tanks.nes").readBytes()
         println("ROM loaded: ${romBytes.size} bytes")
         val cartridge = Cartridge(romBytes)
-        bus = Bus(cartridge)
-        bus.cpu.reset()
+        _bus = Bus(cartridge)
+        _bus.cpu.reset()
         println("NES initialized")
     }
 
     fun runFrame() {
         var cycles = 0
         while (cycles < 29781) {
-            val used = bus.cpu.executeInstruction()
+            val used = _bus.cpu.executeInstruction()
             cycles += used
-            bus.ppu.step(used * 3)
+            _bus.ppu.step(used * 3)
         }
-        bus.ppu.updateBitmap()
+        _bus.ppu.updateBitmap()
     }
 
-    fun getBitmap() = bus.ppu.bitmap
+    fun getBitmap() = _bus.ppu.bitmap
 }

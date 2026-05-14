@@ -11,6 +11,8 @@ class CPU(private val bus: Bus) {
 
     private var irqRequested = false
     private var nmiRequested = false
+    //private var lastOpcode: Int = 0
+    //fun getLastOpcode(): Int = lastOpcode
 
     companion object {
         const val FLAG_C = 0
@@ -57,6 +59,9 @@ class CPU(private val bus: Bus) {
     fun requestIRQ() { irqRequested = true }
     fun requestNMI() { nmiRequested = true }
 
+    private var lastOpcode: Int = 0
+    fun getLastOpcode(): Int = lastOpcode
+
     fun executeInstruction(): Int {
         if (nmiRequested) {
             nmiRequested = false
@@ -68,6 +73,7 @@ class CPU(private val bus: Bus) {
         }
 
         val opcode = fetch()
+        lastExecutedOpcode = opcode
 
         return when (opcode) {
             0x00 -> brk()
@@ -617,4 +623,9 @@ class CPU(private val bus: Bus) {
         PC = (high shl 8) or low
         return 7
     }
+
+
+    private var lastExecutedOpcode: Int = 0
+
+    fun getLastExecutedOpcode(): Int = lastExecutedOpcode
 }
