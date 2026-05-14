@@ -8,7 +8,7 @@ class NES(context: Context) {
     private val bus: Bus
 
     init {
-        val romBytes = context.assets.open("pacman.nes").readBytes()
+        val romBytes = context.assets.open("tanks.nes").readBytes()
         println("ROM loaded: ${romBytes.size} bytes")
         val cartridge = Cartridge(romBytes)
         bus = Bus(cartridge)
