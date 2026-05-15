@@ -42,14 +42,12 @@ class MainActivity : ComponentActivity() {
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
         }
 
-        // SurfaceView для игры (80% высоты)
         val surfaceView = SurfaceView(this).apply {
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 4f)
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 3f)
         }
 
-        // ScrollView с логами (20% высоты)
         val scrollView = ScrollView(this).apply {
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f)
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 2f)
             setBackgroundColor(Color.parseColor("#1E1E1E"))
         }
 
