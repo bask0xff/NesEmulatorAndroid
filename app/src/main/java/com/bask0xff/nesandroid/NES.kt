@@ -11,7 +11,7 @@ class NES(context: Context) {
 
 
     init {
-        val romBytes = context.assets.open("${games[1]}.nes").readBytes()
+        val romBytes = context.assets.open("${games[0]}.nes").readBytes()
         println("ROM loaded: ${romBytes.size} bytes")
         val cartridge = Cartridge(romBytes)
         _bus = Bus(cartridge)
