@@ -126,7 +126,7 @@ class MainActivity : ComponentActivity() {
                             val scaledH = nesH * scale
 
                             val offsetX = (screenW - scaledW) / 2f
-                            val offsetY = 10f
+                            val offsetY = 10f;//(screenH - scaledH) / 2f
 
                             val matrix = Matrix()
                             matrix.setScale(scale, scale)

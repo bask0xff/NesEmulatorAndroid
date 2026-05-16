@@ -13,8 +13,10 @@ class NES(context: Context) {
         val game = games.random()
         val romBytes = context.assets.open("$game.nes").readBytes()
         println("ROM '$game' loaded: ${romBytes.size} bytes")
+
         val cartridge = Cartridge(romBytes)
         _bus = Bus(cartridge)
+
         _bus.cpu.reset()
         println("NES initialized")
     }
