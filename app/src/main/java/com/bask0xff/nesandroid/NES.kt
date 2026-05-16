@@ -10,7 +10,8 @@ class NES(context: Context) {
     private val games = arrayOf("tanks", "contra", "mario", "pacman")
 
     init {
-        val game = games.random()
+        var game = games.random()
+        //game = "pacman"
         val romBytes = context.assets.open("$game.nes").readBytes()
         println("ROM '$game' loaded: ${romBytes.size} bytes")
 
