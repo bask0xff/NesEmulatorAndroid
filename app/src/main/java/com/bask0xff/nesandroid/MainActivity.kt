@@ -36,7 +36,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         nes = NES(this)
 
-        // Создаём вертикальный контейнер
         val mainLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
@@ -65,7 +64,6 @@ class MainActivity : ComponentActivity() {
         mainLayout.addView(scrollView)
         setContentView(mainLayout)
 
-        // Логирование в отдельном потоке
         thread(start = true) {
             while (true) {
                 Thread.sleep(100)
@@ -106,13 +104,11 @@ class MainActivity : ComponentActivity() {
                 renderThread = Thread {
                     while (running) {
                         val frameStart = System.nanoTime()
-
                         nes.runFrame()
 
                         val canvas = holder.lockCanvas() ?: continue
                         try {
                             val bmp = nes.getBitmap()
-
                             canvas.drawColor(Color.BLACK)
 
                             val screenW = canvas.width.toFloat()
@@ -121,7 +117,6 @@ class MainActivity : ComponentActivity() {
                             val nesH = bmp.height.toFloat()
 
                             val scale = minOf(screenW / nesW, screenH / nesH)
-
                             val scaledW = nesW * scale
                             val scaledH = nesH * scale
 
