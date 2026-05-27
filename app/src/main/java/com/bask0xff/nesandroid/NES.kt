@@ -2,18 +2,14 @@ package com.bask0xff.nesandroid
 
 import android.content.Context
 
-class NES(context: Context) {
+class NES(context: Context, gameName: String) {
 
     private val _bus: Bus
     val bus: Bus get() = _bus
 
-    private val games = arrayOf("tanks", "contra", "mario", "pacman", "castelian")
-
     init {
-        var game = games.random()
-        game = "tanks"
-        val romBytes = context.assets.open("$game.nes").readBytes()
-        println("ROM '$game' loaded: ${romBytes.size} bytes")
+        val romBytes = context.assets.open("$gameName.nes").readBytes()
+        println("ROM '$gameName' loaded: ${romBytes.size} bytes")
 
         val cartridge = Cartridge(romBytes)
         _bus = Bus(cartridge)
