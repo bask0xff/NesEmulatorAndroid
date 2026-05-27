@@ -23,15 +23,11 @@ class MainActivity : ComponentActivity() {
     private val logLines = mutableListOf<String>()
     private val maxLogLines = 500
 
-    private var lastPc = -1
-    private var lastOpcode = -1
-    private var lastA = -1
-    private var lastX = -1
-    private var lastY = -1
-    private var lastSP = -1
-    private var lastStatus = -1
+    private var lastPc = -1; private var lastOpcode = -1; private var lastA = -1
+    private var lastX = -1;  private var lastY = -1;  private var lastSP = -1; private var lastStatus = -1
 
     private lateinit var surfaceView: SurfaceView
+    private lateinit var gamepadView: GamepadView
     private lateinit var emulatorLayout: LinearLayout
     private lateinit var gameSelectLayout: LinearLayout
 
@@ -50,13 +46,32 @@ class MainActivity : ComponentActivity() {
             visibility = android.view.View.GONE
         }
 
-        surfaceView = SurfaceView(this).apply {
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 3f)
+        // SurfaceView + GamepadView в одном FrameLayout
+        val gameFrame = FrameLayout(this).apply {
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f)
         }
 
+        surfaceView = SurfaceView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        }
+
+        gamepadView = GamepadView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        }
+
+        gameFrame.addView(surfaceView)
+        gameFrame.addView(gamepadView)
+
+        // Нижняя панель: кнопка смены + лог
         val bottomBar = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 2f)
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
             setBackgroundColor(Color.parseColor("#1E1E1E"))
         }
 
@@ -70,22 +85,20 @@ class MainActivity : ComponentActivity() {
         }
 
         val scrollView = ScrollView(this).apply {
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f)
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 160)  // фиксированная высота лога
         }
-
         logTextView = TextView(this).apply {
-            textSize = 10f
-            typeface = Typeface.MONOSPACE
+            textSize = 10f; typeface = Typeface.MONOSPACE
             setTextColor(Color.parseColor("#00FF00"))
             setBackgroundColor(Color.parseColor("#1E1E1E"))
             setPadding(16, 8, 16, 16)
             text = "=== NES EMULATOR LOG ===\n"
         }
-
         scrollView.addView(logTextView)
         bottomBar.addView(changeGameBtn)
         bottomBar.addView(scrollView)
-        emulatorLayout.addView(surfaceView)
+
+        emulatorLayout.addView(gameFrame)
         emulatorLayout.addView(bottomBar)
 
         // ── Экран выбора игры ────────────────────────────────────────────────
@@ -99,18 +112,16 @@ class MainActivity : ComponentActivity() {
         showGameSelect()
     }
 
-    // ── Строим экран выбора ──────────────────────────────────────────────────
+    // ── Экран выбора ─────────────────────────────────────────────────────────
 
     private fun buildGameSelectScreen(): LinearLayout {
         val gameNames = loadGameList()
-
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
             setBackgroundColor(Color.parseColor("#0D0D0D"))
             setPadding(24, 40, 24, 24)
         }
-
         val title = TextView(this).apply {
             text = "🎮  ВЫБОР ИГРЫ"
             textSize = 20f
@@ -119,33 +130,23 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, 32)
         }
-
         val scroll = ScrollView(this).apply {
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f)
         }
-
         val list = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
         }
-
         if (gameNames.isEmpty()) {
-            val empty = TextView(this).apply {
+            list.addView(TextView(this).apply {
                 text = "Нет .nes файлов в папке assets"
-                textSize = 14f
-                setTextColor(Color.parseColor("#FF4444"))
-                typeface = Typeface.MONOSPACE
-                gravity = Gravity.CENTER
+                textSize = 14f; setTextColor(Color.parseColor("#FF4444"))
+                typeface = Typeface.MONOSPACE; gravity = Gravity.CENTER
                 setPadding(0, 64, 0, 0)
-            }
-            list.addView(empty)
+            })
         } else {
-            gameNames.forEachIndexed { index, name ->
-                val card = buildGameCard(name, index)
-                list.addView(card)
-            }
+            gameNames.forEachIndexed { i, name -> list.addView(buildGameCard(name, i)) }
         }
-
         scroll.addView(list)
         outer.addView(title)
         outer.addView(scroll)
@@ -153,76 +154,51 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun buildGameCard(gameName: String, index: Int): LinearLayout {
-        // Чередуем слегка отличающиеся оттенки для чётных/нечётных строк
-        val bgColor = if (index % 2 == 0) Color.parseColor("#1A1A1A") else Color.parseColor("#141414")
-
+        val bg = if (index % 2 == 0) Color.parseColor("#1A1A1A") else Color.parseColor("#141414")
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(bgColor)
+            setBackgroundColor(bg)
             setPadding(24, 20, 24, 20)
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
-                bottomMargin = 4
-            }
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { bottomMargin = 4 }
             gravity = Gravity.CENTER_VERTICAL
 
-            // Номер
             addView(TextView(this@MainActivity).apply {
-                text = String.format("%02d", index + 1)
-                textSize = 12f
-                typeface = Typeface.MONOSPACE
-                setTextColor(Color.parseColor("#555555"))
-                layoutParams = LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
-                    rightMargin = 20
-                }
+                text = String.format("%02d", index + 1); textSize = 12f
+                typeface = Typeface.MONOSPACE; setTextColor(Color.parseColor("#555555"))
+                layoutParams = LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply { rightMargin = 20 }
             })
-
-            // Название игры
             addView(TextView(this@MainActivity).apply {
-                text = gameName.uppercase()
-                textSize = 16f
+                text = gameName.uppercase(); textSize = 16f
                 typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
                 setTextColor(Color.parseColor("#E0E0E0"))
                 layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)
             })
-
-            // Кнопка "Играть"
             addView(TextView(this@MainActivity).apply {
-                text = "▶ ИГРАТЬ"
-                textSize = 12f
-                typeface = Typeface.MONOSPACE
-                setTextColor(Color.parseColor("#00FF00"))
-                setPadding(16, 8, 16, 8)
+                text = "▶ ИГРАТЬ"; textSize = 12f; typeface = Typeface.MONOSPACE
+                setTextColor(Color.parseColor("#00FF00")); setPadding(16, 8, 16, 8)
                 background = android.graphics.drawable.GradientDrawable().apply {
                     setStroke(2, Color.parseColor("#00FF00"))
-                    setColor(Color.TRANSPARENT)
-                    cornerRadius = 4f
+                    setColor(Color.TRANSPARENT); cornerRadius = 4f
                 }
             })
-
             setOnClickListener { startGame(gameName) }
         }
     }
 
-    // ── Список .nes файлов из assets ────────────────────────────────────────
+    private fun loadGameList(): List<String> = try {
+        assets.list("")
+            ?.filter { it.endsWith(".nes") }
+            ?.map { it.removeSuffix(".nes") }
+            ?.sorted() ?: emptyList()
+    } catch (e: Exception) { emptyList() }
 
-    private fun loadGameList(): List<String> {
-        return try {
-            assets.list("")
-                ?.filter { it.endsWith(".nes") }
-                ?.map { it.removeSuffix(".nes") }
-                ?.sorted()
-                ?: emptyList()
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
-    // ── Переключение экранов ─────────────────────────────────────────────────
+    // ── Управление экранами ──────────────────────────────────────────────────
 
     private fun showGameSelect() {
         stopEmulator()
+        gamepadView.reset()
         gameSelectLayout.visibility = android.view.View.VISIBLE
-        emulatorLayout.visibility = android.view.View.GONE
+        emulatorLayout.visibility   = android.view.View.GONE
     }
 
     private fun startGame(gameName: String) {
@@ -233,22 +209,27 @@ class MainActivity : ComponentActivity() {
         logLines.clear()
         logTextView.text = "=== $gameName.nes ===\n"
 
+        // Подключаем геймпад к эмулятору
+        gamepadView.reset()
+        gamepadView.onStateChanged = { state ->
+            nes?.bus?.input?.setControllerState(state)
+        }
+
         gameSelectLayout.visibility = android.view.View.GONE
-        emulatorLayout.visibility = android.view.View.VISIBLE
+        emulatorLayout.visibility   = android.view.View.VISIBLE
 
         startRenderThread()
         startLogThread()
     }
 
-    // ── Поверхность ──────────────────────────────────────────────────────────
+    // ── SurfaceView ──────────────────────────────────────────────────────────
 
     private fun setupSurface() {
         surfaceView.holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder: SurfaceHolder) {}
             override fun surfaceChanged(holder: SurfaceHolder, format: Int, w: Int, h: Int) {}
             override fun surfaceDestroyed(holder: SurfaceHolder) {
-                running = false
-                renderThread?.join()
+                running = false; renderThread?.join()
             }
         })
     }
@@ -257,34 +238,24 @@ class MainActivity : ComponentActivity() {
         running = true
         renderThread = thread(start = true) {
             while (running) {
-                val frameStart = System.nanoTime()
+                val t0 = System.nanoTime()
                 nes?.runFrame()
 
-                val holder = surfaceView.holder
-                val canvas = holder.lockCanvas() ?: continue
+                val canvas = surfaceView.holder.lockCanvas() ?: continue
                 try {
                     val bmp = nes?.getBitmap() ?: continue
                     canvas.drawColor(Color.BLACK)
-
-                    val screenW = canvas.width.toFloat()
-                    val screenH = canvas.height.toFloat()
-                    val nesW = bmp.width.toFloat()
-                    val nesH = bmp.height.toFloat()
-
-                    val scale = minOf(screenW / nesW, screenH / nesH)
-                    val offsetX = (screenW - nesW * scale) / 2f
-
+                    val scale = minOf(canvas.width / bmp.width.toFloat(), canvas.height / bmp.height.toFloat())
                     val matrix = Matrix().apply {
                         setScale(scale, scale)
-                        postTranslate(offsetX, 10f)
+                        postTranslate((canvas.width - bmp.width * scale) / 2f, 10f)
                     }
                     canvas.drawBitmap(bmp, matrix, Paint().apply { isFilterBitmap = false })
                 } finally {
-                    holder.unlockCanvasAndPost(canvas)
+                    surfaceView.holder.unlockCanvasAndPost(canvas)
                 }
 
-                val elapsed = (System.nanoTime() - frameStart) / 1_000_000
-                val sleep = 16 - elapsed
+                val sleep = 16 - (System.nanoTime() - t0) / 1_000_000
                 if (sleep > 0) Thread.sleep(sleep)
             }
         }
@@ -295,52 +266,36 @@ class MainActivity : ComponentActivity() {
             while (running) {
                 Thread.sleep(100)
                 val cpu = nes?.bus?.cpu ?: continue
-                val pc = cpu.PC
-                val opcode = cpu.getLastExecutedOpcode()
-                val a = cpu.A
-                val x = cpu.X
-                val y = cpu.Y
-                val sp = cpu.SP
-                val status = cpu.status
+                val pc = cpu.PC; val op = cpu.getLastExecutedOpcode()
+                val a = cpu.A;   val x = cpu.X; val y = cpu.Y
+                val sp = cpu.SP; val st = cpu.status
 
-                if (pc != lastPc || opcode != lastOpcode || a != lastA ||
-                    x != lastX || y != lastY || sp != lastSP || status != lastStatus) {
-
-                    lastPc = pc; lastOpcode = opcode; lastA = a
-                    lastX = x; lastY = y; lastSP = sp; lastStatus = status
-
-                    val statusStr = String.format("%08d", Integer.toBinaryString(status).toInt())
-                    val log = String.format(
-                        "PC:%04X OP:%02X A:%02X X:%02X Y:%02X SP:%02X S:%s",
-                        pc, opcode, a, x, y, sp, statusStr
-                    )
-                    addLog(log)
+                if (pc != lastPc || op != lastOpcode || a != lastA ||
+                    x != lastX || y != lastY || sp != lastSP || st != lastStatus) {
+                    lastPc=pc; lastOpcode=op; lastA=a; lastX=x; lastY=y; lastSP=sp; lastStatus=st
+                    val sb = String.format("%08d", Integer.toBinaryString(st).toInt())
+                    addLog(String.format("PC:%04X OP:%02X A:%02X X:%02X Y:%02X SP:%02X S:%s", pc,op,a,x,y,sp,sb))
                 }
             }
         }
     }
 
-    // ── Вспомогательные ─────────────────────────────────────────────────────
+    // ── Утилиты ──────────────────────────────────────────────────────────────
 
     private fun stopEmulator() {
-        running = false
-        renderThread?.join()
-        renderThread = null
+        running = false; renderThread?.join(); renderThread = null
     }
 
     private fun resetLogState() {
-        lastPc = -1; lastOpcode = -1; lastA = -1
-        lastX = -1; lastY = -1; lastSP = -1; lastStatus = -1
+        lastPc=-1; lastOpcode=-1; lastA=-1; lastX=-1; lastY=-1; lastSP=-1; lastStatus=-1
     }
 
-    private fun addLog(message: String) {
-        runOnUiThread {
-            logLines.add(message)
-            while (logLines.size > maxLogLines) logLines.removeAt(0)
-            logTextView.text = logLines.joinToString("\n")
-            (logTextView.parent as ScrollView).post {
-                (logTextView.parent as ScrollView).fullScroll(ScrollView.FOCUS_DOWN)
-            }
+    private fun addLog(msg: String) = runOnUiThread {
+        logLines.add(msg)
+        while (logLines.size > maxLogLines) logLines.removeAt(0)
+        logTextView.text = logLines.joinToString("\n")
+        (logTextView.parent as ScrollView).post {
+            (logTextView.parent as ScrollView).fullScroll(ScrollView.FOCUS_DOWN)
         }
     }
 }
