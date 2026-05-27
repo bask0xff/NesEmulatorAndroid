@@ -85,7 +85,7 @@ class MainActivity : ComponentActivity() {
         }
 
         val scrollView = ScrollView(this).apply {
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 160)  // фиксированная высота лога
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 300)  // ← выше и больше
         }
         logTextView = TextView(this).apply {
             textSize = 10f; typeface = Typeface.MONOSPACE

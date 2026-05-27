@@ -68,7 +68,7 @@ class GamepadView(context: Context) : View(context) {
         val s    = dp(48f)
         val g    = dp(6f)
         val m    = dp(16f)
-        val lift = dp(120f)   // ← поднимаем на это значение; меняй по вкусу
+        val lift = dp(160f)
 
         // D-pad
         val dcx = m + s + g
