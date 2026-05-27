@@ -48,9 +48,8 @@ class MainActivity : ComponentActivity() {
 
         // SurfaceView + GamepadView в одном FrameLayout
         val gameFrame = FrameLayout(this).apply {
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f)
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 2f)  // было 1f
         }
-
         surfaceView = SurfaceView(this).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -68,10 +67,9 @@ class MainActivity : ComponentActivity() {
         gameFrame.addView(surfaceView)
         gameFrame.addView(gamepadView)
 
-        // Нижняя панель: кнопка смены + лог
         val bottomBar = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f)  // было WRAP_CONTENT
             setBackgroundColor(Color.parseColor("#1E1E1E"))
         }
 
@@ -85,8 +83,9 @@ class MainActivity : ComponentActivity() {
         }
 
         val scrollView = ScrollView(this).apply {
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 300)  // ← выше и больше
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f)
         }
+        
         logTextView = TextView(this).apply {
             textSize = 10f; typeface = Typeface.MONOSPACE
             setTextColor(Color.parseColor("#00FF00"))
