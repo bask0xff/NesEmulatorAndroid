@@ -24,6 +24,7 @@ class NES(context: Context, gameName: String) {
             val used = _bus.cpu.executeInstruction()
             cycles += used
             _bus.ppu.step(used * 3)
+            _bus.apu.step(used)
         }
         _bus.ppu.updateBitmap()
     }

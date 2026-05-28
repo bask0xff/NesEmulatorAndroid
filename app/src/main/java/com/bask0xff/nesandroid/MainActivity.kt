@@ -393,7 +393,10 @@ class MainActivity : ComponentActivity() {
     // ── Утилиты ──────────────────────────────────────────────────────────────
 
     private fun stopEmulator() {
-        running = false; renderThread?.join(); renderThread = null
+        running = false
+        renderThread?.join()
+        renderThread = null
+        nes?.bus?.apu?.stop()
     }
 
     private fun resetLogState() {
