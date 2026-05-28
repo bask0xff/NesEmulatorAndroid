@@ -20,6 +20,7 @@ class MainActivity : ComponentActivity() {
     private var renderThread: Thread? = null
 
     private lateinit var logTextView: TextView
+    private lateinit var cartridgeInfoTextView: TextView
     private val logLines = mutableListOf<String>()
     private val maxLogLines = 500
 
@@ -30,6 +31,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var gamepadView: GamepadView
     private lateinit var emulatorLayout: LinearLayout
     private lateinit var gameSelectLayout: LinearLayout
+
+    private data class GameInfo(val name: String, val modelName: String)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -87,6 +90,14 @@ class MainActivity : ComponentActivity() {
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f)
         }
 
+        cartridgeInfoTextView = TextView(this).apply {
+            textSize = 12f; typeface = Typeface.MONOSPACE
+            setTextColor(Color.parseColor("#A8FF9C"))
+            setBackgroundColor(Color.parseColor("#111111"))
+            setPadding(16, 8, 16, 8)
+            text = "Тип модели: —"
+        }
+
         logTextView = TextView(this).apply {
             textSize = 10f; typeface = Typeface.MONOSPACE
             setTextColor(Color.parseColor("#00FF00"))
@@ -96,6 +107,7 @@ class MainActivity : ComponentActivity() {
         }
 
         scrollView.addView(logTextView)
+        bottomBar.addView(cartridgeInfoTextView)
         bottomBar.addView(changeGameBtn)
         bottomBar.addView(scrollView)
 
@@ -116,7 +128,7 @@ class MainActivity : ComponentActivity() {
     // ── Экран выбора ─────────────────────────────────────────────────────────
 
     private fun buildGameSelectScreen(): LinearLayout {
-        val gameNames = loadGameList()
+        val gameInfos = loadGameList()
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
@@ -138,7 +150,8 @@ class MainActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
         }
-        if (gameNames.isEmpty()) {
+
+        if (gameInfos.isEmpty()) {
             list.addView(TextView(this).apply {
                 text = "Нет .nes файлов в папке assets"
                 textSize = 14f; setTextColor(Color.parseColor("#FF4444"))
@@ -146,15 +159,49 @@ class MainActivity : ComponentActivity() {
                 setPadding(0, 64, 0, 0)
             })
         } else {
-            gameNames.forEachIndexed { i, name -> list.addView(buildGameCard(name, i)) }
+            val groupColors = listOf(
+                Color.parseColor("#F5F9F2"),
+                Color.parseColor("#E9F3FB"),
+                Color.parseColor("#FAF0E9"),
+                Color.parseColor("#F7F2FA"),
+                Color.parseColor("#F1F7F0"),
+                Color.parseColor("#F9EEF0")
+            )
+
+            val groups = gameInfos
+                .sortedWith(compareBy({ it.modelName }, { it.name }))
+                .groupBy { it.modelName }
+                .toSortedMap()
+
+            groups.entries.forEachIndexed { groupIndex, entry ->
+                val groupColor = groupColors[groupIndex % groupColors.size]
+                val header = TextView(this).apply {
+                    text = entry.key
+                    textSize = 14f
+                    typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+                    setTextColor(Color.parseColor("#2A3A32"))
+                    setPadding(16, 14, 16, 14)
+                    setBackgroundColor(groupColor)
+                    layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+                        topMargin = if (groupIndex == 0) 0 else 12
+                        bottomMargin = 2
+                    }
+                }
+                list.addView(header)
+
+                entry.value.forEach { gameInfo ->
+                    list.addView(buildGameCard(gameInfo.name, groupColor))
+                }
+            }
         }
+
         scroll.addView(list)
         outer.addView(title)
         outer.addView(scroll)
         return outer
     }
 
-    private fun buildGameCard(gameName: String, index: Int): LinearLayout {
+    private fun buildGameCard(gameName: String, backgroundColor: Int): LinearLayout {
         val bg = if (index % 2 == 0) Color.parseColor("#1A1A1A") else Color.parseColor("#141414")
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -186,11 +233,28 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun loadGameList(): List<String> = try {
+    private fun loadGameList(): List<GameInfo> = try {
         assets.list("")
             ?.filter { it.endsWith(".nes") }
-            ?.map { it.removeSuffix(".nes") }
-            ?.sorted() ?: emptyList()
+            ?.mapNotNull { filename ->
+                val gameName = filename.removeSuffix(".nes")
+                val modelName = try {
+                    assets.open(filename).use { stream ->
+                        val header = ByteArray(16)
+                        if (stream.read(header) == 16) {
+                            val formatType = if ((header[7].toInt() shr 2) and 0x03 == 2) "NES 2.0" else "iNES"
+                            val mapperId = ((header[6].toInt() shr 4) or ((header[7].toInt() shr 4) shl 4)) and 0xFF
+                            "$formatType Mapper $mapperId"
+                        } else {
+                            "Unknown model"
+                        }
+                    }
+                } catch (ex: Exception) {
+                    "Unknown model"
+                }
+                GameInfo(gameName, modelName)
+            }
+            ?.sortedWith(compareBy({ it.modelName }, { it.name })) ?: emptyList()
     } catch (e: Exception) { emptyList() }
 
     // ── Управление экранами ──────────────────────────────────────────────────
@@ -209,6 +273,7 @@ class MainActivity : ComponentActivity() {
         nes = NES(this, gameName)
         logLines.clear()
         logTextView.text = "=== $gameName.nes ===\n"
+        cartridgeInfoTextView.text = "Тип модели: ${nes?.bus?.cartridge?.description ?: "—"}"
 
         gamepadView.reset()
         gamepadView.onStateChanged = { state ->

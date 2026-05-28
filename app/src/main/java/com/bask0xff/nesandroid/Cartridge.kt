@@ -103,8 +103,17 @@ class Cartridge(romData: ByteArray) {
 
         mapper.reset()
 
-        println("Cartridge loaded: Mapper $mapperID, PRG-ROM ${prgBanks * 16}KB, ${if (chrBanks > 0) "${chrBanks * 8}KB CHR-ROM" else "CHR-RAM with test pattern"}")
+        println("Cartridge loaded: ${description}")
     }
+
+    val formatType: String
+        get() = if ((rom[7].toInt() shr 2) and 0x03 == 2) "NES 2.0" else "iNES"
+
+    val chrSizeDescription: String
+        get() = if (chrBanks > 0) "${chrBanks * 8}KB CHR-ROM" else "CHR-RAM"
+
+    val description: String
+        get() = "Mapper $mapperID, $formatType, ${mirroringMode.name.lowercase().replace('_', ' ')}, ${prgBanks * 16}KB PRG-ROM, $chrSizeDescription${if (hasBattery) ", Battery" else ""}"
 
     fun cpuRead(address: UShort): UByte = mapper.cpuRead(address)
     fun cpuWrite(address: UShort, value: UByte) = mapper.cpuWrite(address, value)
@@ -112,12 +121,9 @@ class Cartridge(romData: ByteArray) {
     fun ppuRead(address: UShort): UByte {
         val addr = address.toInt() and 0x3FFF
         return when {
-            addr < chrROM.size -> {
-                chrROM[addr].toUByte()
-            }
-            addr < chrRAM.size -> {
-                chrRAM[addr].toUByte()
-            }
+            addr < 0x2000 -> mapper.ppuRead(addr.toUShort())  // только CHR через маппер
+            addr < chrROM.size -> chrROM[addr].toUByte()
+            addr < chrRAM.size -> chrRAM[addr].toUByte()
             else -> 0u
         }
     }
@@ -125,10 +131,8 @@ class Cartridge(romData: ByteArray) {
     fun ppuWrite(address: UShort, value: UByte) {
         val addr = address.toInt() and 0x3FFF
         when {
-            addr < chrRAM.size -> {
-                chrRAM[addr] = value.toByte()
-            }
-            else -> mapper.ppuWrite(address, value)
+            addr < 0x2000 -> mapper.ppuWrite(addr.toUShort(), value)
+            else -> {}
         }
     }
 
