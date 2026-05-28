@@ -44,11 +44,11 @@ class Bus(val cartridge: Cartridge) {
             address == 0x4016u.toUShort() -> {
                 input.write4016(value)
             }
-            address in 0x4000u..0x4017u -> {
-                apu.write(address, value)
-            }
             address == 0x4014u.toUShort() -> {
                 ppu.writeOAMDMA(value)
+            }
+            address in 0x4000u..0x4017u -> {
+                apu.write(address, value)
             }
             address in 0x2000u..0x3FFFu -> {
                 val reg = (0x2000u + (address and 0x0007u)).toUShort()
