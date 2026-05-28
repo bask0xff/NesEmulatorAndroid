@@ -8,6 +8,8 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.View
+import android.view.WindowInsets
 import android.widget.*
 import androidx.activity.ComponentActivity
 import android.widget.LinearLayout.LayoutParams
@@ -40,6 +42,10 @@ class MainActivity : ComponentActivity() {
         val rootLayout = FrameLayout(this).apply {
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
             setBackgroundColor(Color.BLACK)
+            setOnApplyWindowInsetsListener { view, insets ->
+                view.setPadding(24, 40, 24, 24 + insets.systemWindowInsetBottom)
+                insets
+            }
         }
 
         // ── Экран эмулятора ──────────────────────────────────────────────────
