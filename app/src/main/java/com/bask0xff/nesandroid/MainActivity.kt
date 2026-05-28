@@ -202,30 +202,24 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun buildGameCard(gameName: String, backgroundColor: Int): LinearLayout {
-        val bg = if (index % 2 == 0) Color.parseColor("#1A1A1A") else Color.parseColor("#141414")
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(bg)
+            setBackgroundColor(backgroundColor)
             setPadding(24, 20, 24, 20)
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { bottomMargin = 4 }
             gravity = Gravity.CENTER_VERTICAL
 
             addView(TextView(this@MainActivity).apply {
-                text = String.format("%02d", index + 1); textSize = 12f
-                typeface = Typeface.MONOSPACE; setTextColor(Color.parseColor("#555555"))
-                layoutParams = LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply { rightMargin = 20 }
-            })
-            addView(TextView(this@MainActivity).apply {
                 text = gameName.uppercase(); textSize = 16f
                 typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
-                setTextColor(Color.parseColor("#E0E0E0"))
+                setTextColor(Color.parseColor("#2A3A32"))
                 layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)
             })
             addView(TextView(this@MainActivity).apply {
                 text = "▶ ИГРАТЬ"; textSize = 12f; typeface = Typeface.MONOSPACE
-                setTextColor(Color.parseColor("#00FF00")); setPadding(16, 8, 16, 8)
+                setTextColor(Color.parseColor("#2A3A32")); setPadding(16, 8, 16, 8)
                 background = android.graphics.drawable.GradientDrawable().apply {
-                    setStroke(2, Color.parseColor("#00FF00"))
+                    setStroke(2, Color.parseColor("#2A3A32"))
                     setColor(Color.TRANSPARENT); cornerRadius = 4f
                 }
             })
