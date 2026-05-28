@@ -65,31 +65,27 @@ class GamepadView(context: Context) : View(context) {
     }
 
     private fun layoutButtons(w: Float, h: Float) {
-        val s    = dp(48f)
-        val g    = dp(6f)
-        val m    = dp(16f)
-        val lift = dp(160f)
+        val s = dp(48f)
+        val g = dp(6f)
+        val m = dp(16f)
 
-        // D-pad
         val dcx = m + s + g
-        val dcy = h - m - s - g - lift
+        val dcy = h - m - s - g
         btn(BTN_UP).rect.set   (dcx - s/2,   dcy - s - g, dcx + s/2,   dcy - g    )
         btn(BTN_DOWN).rect.set (dcx - s/2,   dcy + g,     dcx + s/2,   dcy + s + g)
         btn(BTN_LEFT).rect.set (dcx - s - g, dcy - s/2,   dcx - g,     dcy + s/2  )
         btn(BTN_RIGHT).rect.set(dcx + g,     dcy - s/2,   dcx + s + g, dcy + s/2  )
 
-        // A / B
         val acx = w - m - s / 2
-        val acy = h - m - s / 2 - lift
+        val acy = h - m - s / 2
         btn(BTN_A).rect.set(acx - s/2, acy - s/2, acx + s/2, acy + s/2)
         val bcx = acx - s - g
         val bcy = acy - s / 2 - g
         btn(BTN_B).rect.set(bcx - s/2, bcy - s/2, bcx + s/2, bcy + s/2)
 
-        // SELECT / START
         val sw = dp(64f); val sh = dp(30f)
         val cx = w / 2f
-        val sy = h - m - sh / 2 - lift
+        val sy = h - m - sh / 2
         btn(BTN_SELECT).rect.set(cx - sw - g/2, sy - sh/2, cx - g/2,      sy + sh/2)
         btn(BTN_START ).rect.set(cx + g/2,      sy - sh/2, cx + sw + g/2, sy + sh/2)
     }

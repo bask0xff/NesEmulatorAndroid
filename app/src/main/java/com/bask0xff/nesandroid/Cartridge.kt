@@ -96,6 +96,7 @@ class Cartridge(romData: ByteArray) {
             0 -> Mapper0(this)
             1 -> Mapper1(this)
             2 -> Mapper2(this)
+            3 -> Mapper3(this)
             4 -> Mapper4(this)
             else -> throw NotImplementedError("Mapper $mapperID is not supported yet")
         }

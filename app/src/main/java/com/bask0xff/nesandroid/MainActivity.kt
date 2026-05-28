@@ -48,8 +48,9 @@ class MainActivity : ComponentActivity() {
 
         // SurfaceView + GamepadView в одном FrameLayout
         val gameFrame = FrameLayout(this).apply {
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 2f)  // было 1f
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 3f)
         }
+
         surfaceView = SurfaceView(this).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -69,7 +70,7 @@ class MainActivity : ComponentActivity() {
 
         val bottomBar = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f)  // было WRAP_CONTENT
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 2f)
             setBackgroundColor(Color.parseColor("#1E1E1E"))
         }
 
@@ -85,7 +86,7 @@ class MainActivity : ComponentActivity() {
         val scrollView = ScrollView(this).apply {
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f)
         }
-        
+
         logTextView = TextView(this).apply {
             textSize = 10f; typeface = Typeface.MONOSPACE
             setTextColor(Color.parseColor("#00FF00"))
@@ -93,6 +94,7 @@ class MainActivity : ComponentActivity() {
             setPadding(16, 8, 16, 16)
             text = "=== NES EMULATOR LOG ===\n"
         }
+
         scrollView.addView(logTextView)
         bottomBar.addView(changeGameBtn)
         bottomBar.addView(scrollView)
@@ -208,7 +210,6 @@ class MainActivity : ComponentActivity() {
         logLines.clear()
         logTextView.text = "=== $gameName.nes ===\n"
 
-        // Подключаем геймпад к эмулятору
         gamepadView.reset()
         gamepadView.onStateChanged = { state ->
             nes?.bus?.input?.setControllerState(state)

@@ -33,10 +33,23 @@ class Mapper4(private val cartridge: Cartridge) : Mapper {
         val addr = address.toInt()
         return when {
             addr in 0x6000..0x7FFF -> cartridge.prgRAM[addr - 0x6000].toUByte()
-            addr in 0x8000..0x9FFF -> cartridge.prgROM[prgBankOffset0 + (addr - 0x8000)].toUByte()
-            addr in 0xA000..0xBFFF -> cartridge.prgROM[prgBankOffset1 + (addr - 0xA000)].toUByte()
-            addr in 0xC000..0xDFFF -> cartridge.prgROM[prgBankOffset2 + (addr - 0xC000)].toUByte()
-            addr in 0xE000..0xFFFF -> cartridge.prgROM[prgBankOffset3 + (addr - 0xE000)].toUByte()
+            addr in 0x8000..0x9FFF -> {
+                val idx = (prgBankOffset0 + (addr - 0x8000)) % cartridge.prgROM.size
+                cartridge.prgROM[idx].toUByte()
+            }
+            addr in 0xA000..0xBFFF -> {
+                val idx = (prgBankOffset1 + (addr - 0xA000)) % cartridge.prgROM.size
+                cartridge.prgROM[idx].toUByte()
+            }
+            addr in 0xC000..0xDFFF -> {
+                val idx = (prgBankOffset0 + (addr - 0xC000)) % cartridge.prgROM.size
+                cartridge.prgROM[idx].toUByte()
+            }
+            addr in 0xE000..0xFFFF -> {
+                val idx = (prgBankOffset1 + (addr - 0xE000)) % cartridge.prgROM.size
+                cartridge.prgROM[idx].toUByte()
+            }
+
             else -> 0u
         }
     }

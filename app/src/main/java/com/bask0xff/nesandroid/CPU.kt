@@ -417,7 +417,9 @@ class CPU(private val bus: Bus) {
     private fun pha(): Int { push(A); return 3 }
     private fun php(): Int { push(status or 0x30); return 3 }
     private fun pla(): Int { A = pop(); setZN(A); return 4 }
-    private fun plp(): Int { status = pop() or 0x20; return 4 }
+    private fun plp(): Int { status = (pop() and 0xEF) or 0x20; return 4 }
+    // 0xEF = 11101111 — очищает бит 4 (FLAG_B), устанавливает бит 5 (FLAG_U)
+
 
     private fun and(mode: AddrResult, base: Int): Int { A = A and bus.read(mode.address.toUShort()).toInt(); setZN(A); return base + mode.extraCycles }
     private fun eor(mode: AddrResult, base: Int): Int { A = A xor bus.read(mode.address.toUShort()).toInt(); setZN(A); return base + mode.extraCycles }
@@ -437,7 +439,7 @@ class CPU(private val bus: Bus) {
         setFlag(FLAG_C, sum > 0xFF)
         setFlag(FLAG_Z, (sum and 0xFF) == 0)
         setFlag(FLAG_N, (sum and 0x80) != 0)
-        setFlag(FLAG_V, ((A xor m) and (A xor sum) and 0x80) != 0)
+        setFlag(FLAG_V, ((A xor m).inv() and (A xor sum) and 0x80) != 0)
         A = sum and 0xFF
         return base + mode.extraCycles
     }
@@ -568,12 +570,13 @@ class CPU(private val bus: Bus) {
     }
 
     private fun branch(condition: Boolean): Int {
+        val offset = fetch().toByte().toInt()
         if (condition) {
-            val offset = fetch().toByte()
-            PC = PC + offset
-            return 3
+            val oldPC = PC
+            PC = (PC + offset) and 0xFFFF
+            val pageCross = if ((oldPC and 0xFF00) != (PC and 0xFF00)) 1 else 0
+            return 3 + pageCross
         }
-        fetch()
         return 2
     }
 
@@ -592,7 +595,7 @@ class CPU(private val bus: Bus) {
     }
 
     private fun rti(): Int {
-        status = pop() or 0x20
+        status = (pop() and 0xEF) or 0x20
         val low = pop()
         val high = pop()
         PC = (high shl 8) or low
