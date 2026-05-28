@@ -98,8 +98,8 @@ class Cartridge(romData: ByteArray) {
             2 -> Mapper2(this)
             3 -> Mapper3(this)
             4 -> Mapper4(this)
-            else -> throw NotImplementedError("Mapper $mapperID is not supported yet")
-        }
+            else -> null
+        } ?: throw NotImplementedError("Mapper $mapperID is not supported yet")
 
         mapper.reset()
 
@@ -111,6 +111,9 @@ class Cartridge(romData: ByteArray) {
 
     val chrSizeDescription: String
         get() = if (chrBanks > 0) "${chrBanks * 8}KB CHR-ROM" else "CHR-RAM"
+
+    val unsupportedReason: String?
+        get() = if (mapperID !in 0..4) "Mapper $mapperID не поддерживается" else null
 
     val description: String
         get() = "Mapper $mapperID, $formatType, ${mirroringMode.name.lowercase().replace('_', ' ')}, ${prgBanks * 16}KB PRG-ROM, $chrSizeDescription${if (hasBattery) ", Battery" else ""}"

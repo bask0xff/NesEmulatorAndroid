@@ -34,7 +34,12 @@ class MainActivity : ComponentActivity() {
     private lateinit var emulatorLayout: LinearLayout
     private lateinit var gameSelectLayout: LinearLayout
 
-    private data class GameInfo(val name: String, val modelName: String)
+    private data class GameInfo(
+        val name: String,
+        val modelName: String,
+        val supported: Boolean,
+        val unsupportedReason: String?
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -196,7 +201,7 @@ class MainActivity : ComponentActivity() {
                 list.addView(header)
 
                 entry.value.forEach { gameInfo ->
-                    list.addView(buildGameCard(gameInfo.name, groupColor))
+                    list.addView(buildGameCard(gameInfo.name, groupColor, gameInfo.supported, gameInfo.unsupportedReason))
                 }
             }
         }
@@ -207,29 +212,54 @@ class MainActivity : ComponentActivity() {
         return outer
     }
 
-    private fun buildGameCard(gameName: String, backgroundColor: Int): LinearLayout {
+    private fun buildGameCard(
+        gameName: String,
+        backgroundColor: Int,
+        supported: Boolean,
+        unsupportedReason: String?
+    ): LinearLayout {
         return LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
+            orientation = LinearLayout.VERTICAL
             setBackgroundColor(backgroundColor)
             setPadding(24, 20, 24, 20)
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { bottomMargin = 4 }
             gravity = Gravity.CENTER_VERTICAL
+            alpha = if (supported) 1f else 0.6f
 
-            addView(TextView(this@MainActivity).apply {
-                text = gameName.uppercase(); textSize = 16f
-                typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
-                setTextColor(Color.parseColor("#2A3A32"))
-                layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)
+            addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
+
+                addView(TextView(this@MainActivity).apply {
+                    text = gameName.uppercase(); textSize = 16f
+                    typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+                    setTextColor(Color.parseColor("#2A3A32"))
+                    layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)
+                })
+                addView(TextView(this@MainActivity).apply {
+                    text = if (supported) "▶ ИГРАТЬ" else "НЕ ПОДДЕРЖИВАЕТСЯ"
+                    textSize = 12f; typeface = Typeface.MONOSPACE
+                    setTextColor(Color.parseColor("#2A3A32")); setPadding(16, 8, 16, 8)
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        setStroke(2, Color.parseColor("#2A3A32"))
+                        setColor(Color.TRANSPARENT); cornerRadius = 4f
+                    }
+                })
             })
-            addView(TextView(this@MainActivity).apply {
-                text = "▶ ИГРАТЬ"; textSize = 12f; typeface = Typeface.MONOSPACE
-                setTextColor(Color.parseColor("#2A3A32")); setPadding(16, 8, 16, 8)
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    setStroke(2, Color.parseColor("#2A3A32"))
-                    setColor(Color.TRANSPARENT); cornerRadius = 4f
-                }
-            })
-            setOnClickListener { startGame(gameName) }
+
+            if (!supported && !unsupportedReason.isNullOrEmpty()) {
+                addView(TextView(this@MainActivity).apply {
+                    text = unsupportedReason
+                    textSize = 11f
+                    typeface = Typeface.MONOSPACE
+                    setTextColor(Color.parseColor("#5B5B5B"))
+                    setPadding(0, 8, 0, 0)
+                })
+            }
+
+            if (supported) {
+                setOnClickListener { startGame(gameName) }
+            }
         }
     }
 
@@ -238,21 +268,27 @@ class MainActivity : ComponentActivity() {
             ?.filter { it.endsWith(".nes") }
             ?.mapNotNull { filename ->
                 val gameName = filename.removeSuffix(".nes")
-                val modelName = try {
+                var modelName = "Unknown model"
+                var supported = false
+                var unsupportedReason: String? = null
+
+                try {
                     assets.open(filename).use { stream ->
                         val header = ByteArray(16)
                         if (stream.read(header) == 16) {
                             val formatType = if ((header[7].toInt() shr 2) and 0x03 == 2) "NES 2.0" else "iNES"
                             val mapperId = ((header[6].toInt() shr 4) or ((header[7].toInt() shr 4) shl 4)) and 0xFF
-                            "$formatType Mapper $mapperId"
-                        } else {
-                            "Unknown model"
+                            modelName = "$formatType Mapper $mapperId"
+                            supported = mapperId in 0..4
+                            unsupportedReason = if (supported) null else "Mapper $mapperId не поддерживается"
                         }
                     }
                 } catch (ex: Exception) {
-                    "Unknown model"
+                    modelName = "Unknown model"
+                    unsupportedReason = "Ошибка чтения файла"
                 }
-                GameInfo(gameName, modelName)
+
+                GameInfo(gameName, modelName, supported, unsupportedReason)
             }
             ?.sortedWith(compareBy({ it.modelName }, { it.name })) ?: emptyList()
     } catch (e: Exception) { emptyList() }
@@ -270,7 +306,16 @@ class MainActivity : ComponentActivity() {
         stopEmulator()
         resetLogState()
 
-        nes = NES(this, gameName)
+        try {
+            nes = NES(this, gameName)
+        } catch (e: Exception) {
+            addLog("Ошибка загрузки $gameName.nes: ${e.message ?: "неизвестная ошибка"}")
+            Toast.makeText(this, "Игра не поддерживается: $gameName.nes", Toast.LENGTH_LONG).show()
+            gameSelectLayout.visibility = android.view.View.VISIBLE
+            emulatorLayout.visibility = android.view.View.GONE
+            return
+        }
+
         logLines.clear()
         logTextView.text = "=== $gameName.nes ===\n"
         cartridgeInfoTextView.text = "Тип модели: ${nes?.bus?.cartridge?.description ?: "—"}"
@@ -281,7 +326,7 @@ class MainActivity : ComponentActivity() {
         }
 
         gameSelectLayout.visibility = android.view.View.GONE
-        emulatorLayout.visibility   = android.view.View.VISIBLE
+        emulatorLayout.visibility = android.view.View.VISIBLE
 
         startRenderThread()
         startLogThread()
