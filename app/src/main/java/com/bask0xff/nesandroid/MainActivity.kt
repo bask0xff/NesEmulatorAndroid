@@ -109,6 +109,15 @@ class MainActivity : ComponentActivity() {
             text = "Тип модели: —"
         }
 
+        val authorInfoTextView = TextView(this).apply {
+            textSize = 11f; typeface = Typeface.MONOSPACE
+            setTextColor(Color.parseColor("#A8FF9C"))
+            setBackgroundColor(Color.parseColor("#111111"))
+            setPadding(16, 8, 16, 8)
+            text = "Разработчик: Sergey Baskov, Android Developer"
+            gravity = Gravity.CENTER
+        }
+
         logTextView = TextView(this).apply {
             textSize = 10f; typeface = Typeface.MONOSPACE
             setTextColor(Color.parseColor("#00FF00"))
@@ -119,6 +128,7 @@ class MainActivity : ComponentActivity() {
 
         scrollView.addView(logTextView)
         bottomBar.addView(cartridgeInfoTextView)
+        bottomBar.addView(authorInfoTextView)
         bottomBar.addView(changeGameBtn)
         bottomBar.addView(scrollView)
 
@@ -155,7 +165,7 @@ class MainActivity : ComponentActivity() {
             setPadding(0, 0, 0, 32)
         }
         val authorInfo = TextView(this).apply {
-            text = "Разработчик: Sergey Baskov, Senior Android Developer"
+            text = "Developed by Sergey Baskov"
             textSize = 12f
             typeface = Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL)
             setTextColor(Color.parseColor("#A8FF9C"))
@@ -165,6 +175,8 @@ class MainActivity : ComponentActivity() {
         val scroll = ScrollView(this).apply {
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f)
         }
+        outer.addView(title)
+        outer.addView(authorInfo)
         val list = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
@@ -215,7 +227,6 @@ class MainActivity : ComponentActivity() {
         }
 
         scroll.addView(list)
-        outer.addView(title)
         outer.addView(scroll)
         return outer
     }
