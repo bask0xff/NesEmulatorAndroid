@@ -376,8 +376,7 @@ class PPU(private val bus: Bus) {
             }
             0x2001 -> ppumask = v8
             0x2002 -> {
-                ppustatus = ppustatus and 0x7F
-                scrollLatch = false
+                // $2002 is read-only; writes are ignored
             }
             0x2003 -> oamaddr = v8
             0x2004 -> {
@@ -418,6 +417,7 @@ class PPU(private val bus: Bus) {
                 val result = ppustatus
                 ppustatus = ppustatus and 0x3F
                 addrLatch = false
+                scrollLatch = false
                 result.toUByte()
             }
             0x2004 -> oam[oamaddr].toUByte()

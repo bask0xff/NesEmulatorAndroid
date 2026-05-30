@@ -154,6 +154,14 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, 32)
         }
+        val authorInfo = TextView(this).apply {
+            text = "Разработчик: Sergey Baskov, Senior Android Developer"
+            textSize = 12f
+            typeface = Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL)
+            setTextColor(Color.parseColor("#A8FF9C"))
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, 24)
+        }
         val scroll = ScrollView(this).apply {
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f)
         }

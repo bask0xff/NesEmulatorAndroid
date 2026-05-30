@@ -35,6 +35,7 @@ class Cartridge(romData: ByteArray) {
         val flag6 = rom[6].toInt() and 0xFF
         val flag7 = rom[7].toInt() and 0xFF
 
+        val hasTrainer = (flag6 and 0x04) != 0
         val mirrorVertical = (flag6 and 0x01) != 0
         hasBattery = (flag6 and 0x02) != 0
 
@@ -50,12 +51,19 @@ class Cartridge(romData: ByteArray) {
 
         // Копируем PRG ROM
         val prgSize = prgBanks * 16 * 1024
+        val trainerSize = if (hasTrainer) 512 else 0
+        val prgStart = 16 + trainerSize
+        val chrSize = chrBanks * 8 * 1024
+        val expectedSize = prgStart + prgSize + chrSize
+        if (rom.size < expectedSize) {
+            throw IllegalArgumentException("Unexpected ROM size: expected at least $expectedSize bytes, found ${rom.size}")
+        }
+
         prgROM = ByteArray(prgSize)
-        System.arraycopy(rom, 16, prgROM, 0, prgSize)
+        System.arraycopy(rom, prgStart, prgROM, 0, prgSize)
 
         // Копируем CHR ROM
-        val chrSize = chrBanks * 8 * 1024
-        val chrOffset = 16 + prgSize
+        val chrOffset = prgStart + prgSize
 
         chrROM = if (chrSize > 0) {
             ByteArray(chrSize).also {
