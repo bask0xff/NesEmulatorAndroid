@@ -22,6 +22,9 @@ class Bus(val cartridge: Cartridge) {
             address == 0x4016u.toUShort() -> {
                 input.read4016()
             }
+            address == 0x4017u.toUShort() -> {
+                input.read4017()
+            }
             address in 0x4000u..0x4017u -> {
                 apu.read(address)
             }

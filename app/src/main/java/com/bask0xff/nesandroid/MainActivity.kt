@@ -31,6 +31,7 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var surfaceView: SurfaceView
     private lateinit var gamepadView: GamepadView
+    private lateinit var gamepadView2: GamepadView
     private lateinit var emulatorLayout: LinearLayout
     private lateinit var gameSelectLayout: LinearLayout
 
@@ -98,7 +99,7 @@ class MainActivity : ComponentActivity() {
         }
 
         val scrollView = ScrollView(this).apply {
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f)
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, 0, 0.5f)
         }
 
         cartridgeInfoTextView = TextView(this).apply {
@@ -114,9 +115,22 @@ class MainActivity : ComponentActivity() {
             setTextColor(Color.parseColor("#A8FF9C"))
             setBackgroundColor(Color.parseColor("#111111"))
             setPadding(16, 8, 16, 8)
-            text = "Разработчик: Sergey Baskov, Android Developer"
+            text = "Разработчик: Sergey Baskov, Senior Android Developer"
             gravity = Gravity.CENTER
         }
+
+        // Контейнер для отображения второго геймпада под экраном
+        val padHeight = (resources.displayMetrics.density * 120).toInt()
+        val bottomGamepads = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, padHeight)
+        }
+
+        gamepadView2 = GamepadView(this).apply {
+            layoutParams = LayoutParams(0, LayoutParams.MATCH_PARENT, 1f)
+        }
+
+        bottomGamepads.addView(gamepadView2)
 
         logTextView = TextView(this).apply {
             textSize = 10f; typeface = Typeface.MONOSPACE
@@ -129,6 +143,7 @@ class MainActivity : ComponentActivity() {
         scrollView.addView(logTextView)
         bottomBar.addView(cartridgeInfoTextView)
         bottomBar.addView(authorInfoTextView)
+        bottomBar.addView(bottomGamepads)
         bottomBar.addView(changeGameBtn)
         bottomBar.addView(scrollView)
 
@@ -165,7 +180,7 @@ class MainActivity : ComponentActivity() {
             setPadding(0, 0, 0, 32)
         }
         val authorInfo = TextView(this).apply {
-            text = "Developed by Sergey Baskov"
+            text = "Developed by Sergey Baskov https://bask0xff.com"
             textSize = 12f
             typeface = Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL)
             setTextColor(Color.parseColor("#A8FF9C"))
@@ -340,8 +355,14 @@ class MainActivity : ComponentActivity() {
         cartridgeInfoTextView.text = "Тип модели: ${nes?.bus?.cartridge?.description ?: "—"}"
 
         gamepadView.reset()
+        gamepadView2.reset()
+
         gamepadView.onStateChanged = { state ->
-            nes?.bus?.input?.setControllerState(state)
+            nes?.bus?.input?.setControllerState1(state)
+        }
+
+        gamepadView2.onStateChanged = { state ->
+            nes?.bus?.input?.setControllerState2(state)
         }
 
         gameSelectLayout.visibility = android.view.View.GONE
