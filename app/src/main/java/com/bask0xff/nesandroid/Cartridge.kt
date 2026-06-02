@@ -130,21 +130,18 @@ class Cartridge(romData: ByteArray) {
     fun cpuWrite(address: UShort, value: UByte) = mapper.cpuWrite(address, value)
 
     fun ppuRead(address: UShort): UByte {
-        val addr = address.toInt() and 0x3FFF
-        return when {
-            addr < 0x2000 -> mapper.ppuRead(addr.toUShort())  // только CHR через маппер
-            addr < chrROM.size -> chrROM[addr].toUByte()
-            addr < chrRAM.size -> chrRAM[addr].toUByte()
-            else -> 0u
-        }
+        // Only pattern table (0x0000-0x1FFF) reads belong to the cartridge/mappers.
+        // Mask to 13 bits to be safe and delegate to the mapper which handles
+        // CHR-ROM/CHR-RAM banking and read logic.
+        val addr = address.toInt() and 0x1FFF
+        return mapper.ppuRead(addr.toUShort())
     }
 
     fun ppuWrite(address: UShort, value: UByte) {
-        val addr = address.toInt() and 0x3FFF
-        when {
-            addr < 0x2000 -> mapper.ppuWrite(addr.toUShort(), value)
-            else -> {}
-        }
+        // Writes to pattern table (0x0000-0x1FFF) are handled by the mapper
+        // when CHR is writable (CHR-RAM). Mask and forward to mapper.
+        val addr = address.toInt() and 0x1FFF
+        mapper.ppuWrite(addr.toUShort(), value)
     }
 
     fun setMirroring(mode: Mirroring) {
