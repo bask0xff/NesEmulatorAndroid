@@ -83,9 +83,10 @@ code = [
 ]
 
 prg[: len(code)] = bytes(code)
-# Reset vector at end of 16KB PRG bank
-prg[0x7FFC] = 0x00
-prg[0x7FFD] = 0x80
+# Reset vector at end of PRG bank (use end of buffer so it works for 16KB or 32KB)
+vec_off = len(prg) - 4
+prg[vec_off] = 0x00
+prg[vec_off + 1] = 0x80
 
 rom_bytes = bytes(header) + bytes(prg)
 
