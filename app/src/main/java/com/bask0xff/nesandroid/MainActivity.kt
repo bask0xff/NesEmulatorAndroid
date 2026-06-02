@@ -46,12 +46,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Сохраняем демо ROM при первом запуске
-        try {
-            SimpleNesProgram.saveSimpleDemoRom(this, "simple-demo.nes")
-        } catch (e: Exception) {
-            println("Ошибка сохранения демо ROM: ${e.message}")
-        }
+        // Демо ROM теперь в памяти — не сохраняем его в assets/files.
 
         val rootLayout = FrameLayout(this).apply {
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
@@ -307,6 +302,18 @@ class MainActivity : ComponentActivity() {
 
     private fun loadGameList(): List<GameInfo> = try {
         val gamesList = mutableListOf<GameInfo>()
+        // Добавляем встроенное демо в память
+        try {
+            val demoBytes = SimpleNesProgram.createSimpleDemoRom()
+            val header = demoBytes.copyOfRange(0, 16)
+            val formatType = if ((header[7].toInt() shr 2) and 0x03 == 2) "NES 2.0" else "iNES"
+            val mapperId = ((header[6].toInt() shr 4) or ((header[7].toInt() shr 4) shl 4)) and 0xFF
+            val modelName = "$formatType Mapper $mapperId"
+            val supported = mapperId in 0..4
+            gamesList.add(GameInfo("simple-demo", modelName, supported, if (supported) null else "Mapper $mapperId не поддерживается"))
+        } catch (ex: Exception) {
+            println("Ошибка при создании встроенного демо: ${ex.message}")
+        }
 
         // Загружаем из assets
         try {
@@ -399,11 +406,16 @@ class MainActivity : ComponentActivity() {
                 if (file.exists()) {
                     file.readBytes()
                 } else {
-                    throw IllegalArgumentException("ROM '$gameName.nes' not found")
+                    // Если это встроенное демо, создаём NES из памяти
+                    if (gameName == "simple-demo") {
+                        null
+                    } else {
+                        throw IllegalArgumentException("ROM '$gameName.nes' not found")
+                    }
                 }
             }
 
-            nes = NES(romBytes)
+            nes = if (romBytes != null) NES(romBytes) else SimpleNesProgram.createDemoNes(this)
         } catch (e: Exception) {
             addLog("Ошибка загрузки $gameName.nes: ${e.message ?: "неизвестная ошибка"}")
             Toast.makeText(this, "Игра не поддерживается: $gameName.nes", Toast.LENGTH_LONG).show()
