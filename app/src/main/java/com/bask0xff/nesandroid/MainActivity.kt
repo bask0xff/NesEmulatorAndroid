@@ -14,6 +14,7 @@ import android.widget.*
 import androidx.activity.ComponentActivity
 import android.widget.LinearLayout.LayoutParams
 import kotlin.concurrent.thread
+import java.io.File
 
 class MainActivity : ComponentActivity() {
 
@@ -44,6 +45,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Сохраняем демо ROM при первом запуске
+        try {
+            SimpleNesProgram.saveSimpleDemoRom(this, "simple-demo.nes")
+        } catch (e: Exception) {
+            println("Ошибка сохранения демо ROM: ${e.message}")
+        }
 
         val rootLayout = FrameLayout(this).apply {
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
@@ -298,16 +306,51 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun loadGameList(): List<GameInfo> = try {
-        assets.list("")
-            ?.filter { it.endsWith(".nes") }
-            ?.mapNotNull { filename ->
-                val gameName = filename.removeSuffix(".nes")
+        val gamesList = mutableListOf<GameInfo>()
+
+        // Загружаем из assets
+        try {
+            assets.list("")
+                ?.filter { it.endsWith(".nes") }
+                ?.mapNotNull { filename ->
+                    val gameName = filename.removeSuffix(".nes")
+                    var modelName = "Unknown model"
+                    var supported = false
+                    var unsupportedReason: String? = null
+
+                    try {
+                        assets.open(filename).use { stream ->
+                            val header = ByteArray(16)
+                            if (stream.read(header) == 16) {
+                                val formatType = if ((header[7].toInt() shr 2) and 0x03 == 2) "NES 2.0" else "iNES"
+                                val mapperId = ((header[6].toInt() shr 4) or ((header[7].toInt() shr 4) shl 4)) and 0xFF
+                                modelName = "$formatType Mapper $mapperId"
+                                supported = mapperId in 0..4
+                                unsupportedReason = if (supported) null else "Mapper $mapperId не поддерживается"
+                            }
+                        }
+                    } catch (ex: Exception) {
+                        modelName = "Unknown model"
+                        unsupportedReason = "Ошибка чтения файла: ${ex.message}"
+                    }
+
+                    GameInfo(gameName, modelName, supported, unsupportedReason)
+                }
+                ?.let { gamesList.addAll(it) }
+        } catch (ex: Exception) {
+            println("Ошибка при чтении assets: ${ex.message}")
+        }
+
+        // Загружаем из внутреннего хранилища (где сохранён демо ROM)
+        try {
+            filesDir.listFiles()?.filter { it.name.endsWith(".nes") }?.forEach { file ->
+                val gameName = file.name.removeSuffix(".nes")
                 var modelName = "Unknown model"
                 var supported = false
                 var unsupportedReason: String? = null
 
                 try {
-                    assets.open(filename).use { stream ->
+                    file.inputStream().use { stream ->
                         val header = ByteArray(16)
                         if (stream.read(header) == 16) {
                             val formatType = if ((header[7].toInt() shr 2) and 0x03 == 2) "NES 2.0" else "iNES"
@@ -319,12 +362,18 @@ class MainActivity : ComponentActivity() {
                     }
                 } catch (ex: Exception) {
                     modelName = "Unknown model"
-                    unsupportedReason = "Ошибка чтения файла"
+                    unsupportedReason = "Ошибка чтения файла: ${ex.message}"
                 }
 
-                GameInfo(gameName, modelName, supported, unsupportedReason)
+                gamesList.add(GameInfo(gameName, modelName, supported, unsupportedReason))
+                println("Загруженная игра из internal: $gameName - $modelName")
             }
-            ?.sortedWith(compareBy({ it.modelName }, { it.name })) ?: emptyList()
+        } catch (ex: Exception) {
+            println("Ошибка при чтении internal storage: ${ex.message}")
+        }
+
+        println("Всего загружено игр: ${gamesList.size}")
+        gamesList.sortedWith(compareBy({ it.modelName }, { it.name }))
     } catch (e: Exception) { emptyList() }
 
     // ── Управление экранами ──────────────────────────────────────────────────
@@ -341,7 +390,20 @@ class MainActivity : ComponentActivity() {
         resetLogState()
 
         try {
-            nes = NES(this, gameName)
+            // Сначала пытаемся загрузить из assets
+            val romBytes = try {
+                assets.open("$gameName.nes").readBytes()
+            } catch (e: Exception) {
+                // Если нет в assets, пытаемся загрузить из внутреннего хранилища
+                val file = File(filesDir, "$gameName.nes")
+                if (file.exists()) {
+                    file.readBytes()
+                } else {
+                    throw IllegalArgumentException("ROM '$gameName.nes' not found")
+                }
+            }
+
+            nes = NES(romBytes)
         } catch (e: Exception) {
             addLog("Ошибка загрузки $gameName.nes: ${e.message ?: "неизвестная ошибка"}")
             Toast.makeText(this, "Игра не поддерживается: $gameName.nes", Toast.LENGTH_LONG).show()

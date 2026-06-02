@@ -2,18 +2,24 @@ package com.bask0xff.nesandroid
 
 import android.content.Context
 
-class NES(context: Context, gameName: String) {
+class NES {
 
-    private val _bus: Bus
+    private lateinit var _bus: Bus
     val bus: Bus get() = _bus
 
-    init {
+    constructor(context: Context, gameName: String) {
         val romBytes = context.assets.open("$gameName.nes").readBytes()
         println("ROM '$gameName' loaded: ${romBytes.size} bytes")
+        initBus(romBytes)
+    }
 
+    constructor(romBytes: ByteArray) {
+        initBus(romBytes)
+    }
+
+    private fun initBus(romBytes: ByteArray) {
         val cartridge = Cartridge(romBytes)
         _bus = Bus(cartridge)
-
         _bus.cpu.reset()
         println("NES initialized")
     }
