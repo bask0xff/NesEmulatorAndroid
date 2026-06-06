@@ -39,18 +39,7 @@ The project combines multiple technological layers to achieve maximum framerates
 ## Build Requirements
 - Android SDK (API level 21+)
 - Android NDK (the recommended version is specified in build.gradle / local.properties)
-- CMake 3.10.2+
 - Gradle & Android Studio (Ladybug or newer)
-
-## Quick Start & Integration
-To display the gameplay inside your layout, use the specialized NESView:
-
-```xml
-<com.suzukiplan.nesemulatorandroid.NESView
-    android:id="@+id/nes_view"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent" />
-```
 
 ## Initializing and Running a ROM in an Activity/Fragment:
 ```kotlin
