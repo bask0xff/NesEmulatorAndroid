@@ -37,9 +37,9 @@ The project combines multiple technological layers to achieve maximum framerates
 ```
 
 ## Build Requirements
+- Gradle & Android Studio (Ladybug or newer)
 - Android SDK (API level 21+)
 - Android NDK (the recommended version is specified in build.gradle / local.properties)
-- Gradle & Android Studio (Ladybug or newer)
 
 ## Initializing and Running a ROM in an Activity/Fragment:
 ```kotlin
