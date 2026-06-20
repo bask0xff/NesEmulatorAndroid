@@ -12,7 +12,7 @@ The architecture is centered around porting and optimizing low-level emulation l
 
 The project combines multiple technological layers to achieve maximum framerates and minimize input latency:
 
-1. **Core / Emulation Logic**: A highly optimized core that handles registers, memory management, CPU instructions (MOS Technology 6502), PPU (Picture Processing Unit), and APU (Audio Processing Unit) logic.
+1. **Core / Emulation Logic**: A highly optimized core thаt handles registers, memory management, CPU instructions (MOS Technology 6502), PPU (Picture Processing Unit), and APU (Audio Processing Unit) logic.
 2. **Low-Level Native Layer (C++/CMake)**: Critical parts of the rendering pipeline are offloaded to the Native layer for direct interaction with screen and audio buffers. This eliminates excessive Garbage Collector (GC) overhead within the JVM/Art runtime.
 3. **Android UI Layer (Java/Kotlin)**: 
    - `NESView` Component — a custom UI view dedicated to rendering the game's frame buffer.
