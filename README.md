@@ -63,6 +63,14 @@ Gameplay controls are managed by passing bitmasks of the controller state using 
 val padState = NESKey.BIT_A or NESKey.BIT_START
 nesView.tick(padState)
 ```
+## Donate
+USDT TRC20 : THR5VLuZWn7z8iiXwJ1WK9Sg4E6Ae8qUmk
+
+USDT ERC20 : 0x4b5fAF36e95918AD3e65bF9bd42E1FDEca93db2e
+
+Bitcoin BTC : 1AqcSbBw1UDULszboqi8mq8jE7Kykwwncm
+
+BTC TrustWallet: bc1qvlzld7nh7jnjmtvkgj4fn9wwvm98f9c07sc006
 
 ## License
 This project is licensed under the GPLv3 (GNU General Public License v3). The full license text is available in the LICENSE file.
