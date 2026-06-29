@@ -30,8 +30,8 @@ The project combines multiple technological layers to achieve maximum framerates
 ```text
 ├── app/                      # Demo Android application (emulator wrapper)
 ├── library/                  # Emulator module (integration library)
-│   ├── src/main/cpp/         # Native C++ core components and Cycloa integration
 │   ├── src/main/java/        # Java/Kotlin wrappers, custom UI component API (NESView, NESKey)
+│   ├── src/main/cpp/         # Native C++ core components and Cycloa integration
 │   └── CMakeLists.txt        # Native component build configuration
 └── build.gradle              # Project build scripts
 ```
