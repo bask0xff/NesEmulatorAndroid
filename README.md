@@ -21,8 +21,8 @@ The project combines multiple technological layers to achieve maximum framerates
 ## Features
 
 - **High Performance**: Optimized rendering cycle utilizing direct screen buffer streaming.
-- **Aspect Ratio Scaling**: Proper scaling options to handle retro TV aspect ratios on modern displays.
 - **Audio Support**: Seamless, stutter-free audio playback via `AudioTrack` interfaces.
+- **Aspect Ratio Scaling**: Proper scaling options to handle retro TV aspect ratios on modern displays.
 - **Save/Load States**: Support for instant game state saving and loading.
 
 ## Project Structure
