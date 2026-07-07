@@ -266,6 +266,24 @@ class PPU(private val bus: Bus) {
 
     fun read(address: UShort): UByte {
         val addr = address.toInt() and 0x3FFF
+        return if (addr < 0x2000) {
+            // Временный тест-паттерн
+            val test = if ((addr / 16) % 2 == 0) 0x55.toUByte() else 0xAA.toUByte()
+            if (DEBUG && debugFrame % 30 == 0 && addr < 0x20) {
+                println("TEST CHR Read addr=0x${addr.toString(16)} -> 0x${test.toInt()}")
+            }
+            test
+        } else if (addr <= 0x3EFF) {
+            vram[mirrorVRAMAddress(addr)].toUByte()
+        } else {
+            var mirrored = addr and 0x1F
+            if (mirrored >= 0x10 && mirrored % 4 == 0) mirrored -= 0x10
+            paletteRAM[mirrored].toUByte()
+        }
+    }
+
+    fun read_old(address: UShort): UByte {
+        val addr = address.toInt() and 0x3FFF
         val result = if (addr < 0x2000) {
             val chr = bus.cartridge.ppuRead(addr.toUShort())
             if (DEBUG && debugFrame % 30 == 0 && addr < 0x10) {
