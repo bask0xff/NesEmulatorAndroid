@@ -352,7 +352,7 @@ class MainActivity : ComponentActivity() {
 
         logLines.clear()
         logTextView.text = "=== $gameName.nes ===\n"
-        cartridgeInfoTextView.text = "Тип модели: ${nes?.bus?.cartridge?.description ?: "—"}"
+        //cartridgeInfoTextView.text = "Тип модели: ${nes?.bus?.cartridge?.description ?: "—"}"
 
         gamepadView.reset()
         gamepadView2.reset()

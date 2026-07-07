@@ -32,7 +32,7 @@ class Mapper0(private val cartridge: Cartridge) : Mapper {
     }
 
     override fun ppuRead(address: UShort): UByte {
-        val addr = address.toInt()
+        val addr = address.toInt() and 0x1FFF
         return if (addr < 0x2000) {
             if (cartridge.chrBanks != 0) {
                 cartridge.chrROM[addr % cartridge.chrROM.size].toUByte()
@@ -45,7 +45,7 @@ class Mapper0(private val cartridge: Cartridge) : Mapper {
     }
 
     override fun ppuWrite(address: UShort, value: UByte) {
-        val addr = address.toInt()
+        val addr = address.toInt() and 0x1FFF
         if (addr < 0x2000 && cartridge.chrBanks == 0) {
             cartridge.chrRAM[addr] = value.toByte()
         }

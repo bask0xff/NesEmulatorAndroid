@@ -19,7 +19,6 @@ class Cartridge(romData: ByteArray) {
     lateinit var mapper: Mapper
 
     init {
-        // Проверка iNES заголовка
         if (rom.size < 16 ||
             rom[0] != 'N'.code.toByte() ||
             rom[1] != 'E'.code.toByte() ||
@@ -49,100 +48,69 @@ class Cartridge(romData: ByteArray) {
 
         mapperID = (flag6 shr 4) or ((flag7 shr 4) shl 4)
 
-        // Копируем PRG ROM
-        val prgSize = prgBanks * 16 * 1024
         val trainerSize = if (hasTrainer) 512 else 0
         val prgStart = 16 + trainerSize
+        val prgSize = prgBanks * 16 * 1024
         val chrSize = chrBanks * 8 * 1024
-        val expectedSize = prgStart + prgSize + chrSize
-        if (rom.size < expectedSize) {
-            throw IllegalArgumentException("Unexpected ROM size: expected at least $expectedSize bytes, found ${rom.size}")
-        }
 
         prgROM = ByteArray(prgSize)
         System.arraycopy(rom, prgStart, prgROM, 0, prgSize)
 
-        // Копируем CHR ROM
         val chrOffset = prgStart + prgSize
-
         chrROM = if (chrSize > 0) {
             ByteArray(chrSize).also {
                 System.arraycopy(rom, chrOffset, it, 0, chrSize)
             }
         } else {
-            // Если нет CHR-ROM, создаём CHR-RAM с тестовым паттерном
             println("No CHR-ROM found, creating test pattern in CHR-RAM")
-            ByteArray(8 * 1024).also {
-                // Создаём простой узор: шахматная доска
-                for (i in 0 until minOf(8192, it.size) step 16) {
-                    if (i + 15 < it.size) {
-                        // Плоскость 0 (биты 0)
-                        it[i] = 0x55.toByte()     // 01010101
-                        it[i + 1] = 0x55.toByte()
-                        it[i + 2] = 0x55.toByte()
-                        it[i + 3] = 0x55.toByte()
-                        it[i + 4] = 0x55.toByte()
-                        it[i + 5] = 0x55.toByte()
-                        it[i + 6] = 0x55.toByte()
-                        it[i + 7] = 0x55.toByte()
-                        // Плоскость 1 (биты 1)
-                        it[i + 8] = 0xAA.toByte()  // 10101010
-                        it[i + 9] = 0xAA.toByte()
-                        it[i + 10] = 0xAA.toByte()
-                        it[i + 11] = 0xAA.toByte()
-                        it[i + 12] = 0xAA.toByte()
-                        it[i + 13] = 0xAA.toByte()
-                        it[i + 14] = 0xAA.toByte()
-                        it[i + 15] = 0xAA.toByte()
+            ByteArray(8 * 1024).also { ram ->
+                for (i in 0 until ram.size step 16) {
+                    if (i + 15 < ram.size) {
+                        ram[i] = 0x55.toByte()
+                        ram[i+1] = 0x55.toByte()
+                        ram[i+2] = 0x55.toByte()
+                        ram[i+3] = 0x55.toByte()
+                        ram[i+4] = 0x55.toByte()
+                        ram[i+5] = 0x55.toByte()
+                        ram[i+6] = 0x55.toByte()
+                        ram[i+7] = 0x55.toByte()
+                        ram[i+8] = 0xAA.toByte()
+                        ram[i+9] = 0xAA.toByte()
+                        ram[i+10] = 0xAA.toByte()
+                        ram[i+11] = 0xAA.toByte()
+                        ram[i+12] = 0xAA.toByte()
+                        ram[i+13] = 0xAA.toByte()
+                        ram[i+14] = 0xAA.toByte()
+                        ram[i+15] = 0xAA.toByte()
                     }
                 }
             }
         }
 
-        // Инициализация маппера
         mapper = when (mapperID) {
             0 -> Mapper0(this)
             1 -> Mapper1(this)
             2 -> Mapper2(this)
             3 -> Mapper3(this)
             4 -> Mapper4(this)
-            else -> null
-        } ?: throw NotImplementedError("Mapper $mapperID is not supported yet")
+            else -> throw NotImplementedError("Mapper $mapperID is not supported yet")
+        }
 
         mapper.reset()
 
-        println("Cartridge loaded: ${description}")
+        println("Cartridge loaded: ${getDescription()}")
     }
 
-    val formatType: String
-        get() = if ((rom[7].toInt() shr 2) and 0x03 == 2) "NES 2.0" else "iNES"
-
-    val chrSizeDescription: String
-        get() = if (chrBanks > 0) "${chrBanks * 8}KB CHR-ROM" else "CHR-RAM"
-
-    val unsupportedReason: String?
-        get() = if (mapperID !in 0..4) "Mapper $mapperID не поддерживается" else null
-
-    val description: String
-        get() = "Mapper $mapperID, $formatType, ${mirroringMode.name.lowercase().replace('_', ' ')}, ${prgBanks * 16}KB PRG-ROM, $chrSizeDescription${if (hasBattery) ", Battery" else ""}"
+    private fun getDescription(): String {
+        val chrDesc = if (chrBanks > 0) "${chrBanks * 8}KB CHR-ROM" else "CHR-RAM"
+        return "Mapper $mapperID, ${if ((rom[7].toInt() shr 2) and 0x03 == 2) "NES 2.0" else "iNES"}, ${mirroringMode.name.lowercase().replace('_', ' ')}, ${prgBanks * 16}KB PRG-ROM, $chrDesc${if (hasBattery) ", Battery" else ""}"
+    }
 
     fun cpuRead(address: UShort): UByte = mapper.cpuRead(address)
     fun cpuWrite(address: UShort, value: UByte) = mapper.cpuWrite(address, value)
 
-    fun ppuRead(address: UShort): UByte {
-        // Only pattern table (0x0000-0x1FFF) reads belong to the cartridge/mappers.
-        // Mask to 13 bits to be safe and delegate to the mapper which handles
-        // CHR-ROM/CHR-RAM banking and read logic.
-        val addr = address.toInt() and 0x1FFF
-        return mapper.ppuRead(addr.toUShort())
-    }
-
-    fun ppuWrite(address: UShort, value: UByte) {
-        // Writes to pattern table (0x0000-0x1FFF) are handled by the mapper
-        // when CHR is writable (CHR-RAM). Mask and forward to mapper.
-        val addr = address.toInt() and 0x1FFF
-        mapper.ppuWrite(addr.toUShort(), value)
-    }
+    fun ppuRead(address: UShort): UByte = mapper.ppuRead(address)
+    fun ppuWrite(address: UShort, value: UByte) = mapper.ppuWrite(address, value)
 
     fun setMirroring(mode: Mirroring) {
         mirroringMode = mode
