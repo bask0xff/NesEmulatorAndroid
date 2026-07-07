@@ -11,12 +11,10 @@ class PPU(private val bus: Bus) {
         private const val CYCLES_PER_SCANLINE = 341
     }
 
-    // PPU Memory
     private val vram = ByteArray(2048)
     private val paletteRAM = ByteArray(32)
     private val oam = ByteArray(256)
 
-    // Registers
     var ppuctrl: Int = 0
     var ppumask: Int = 0
     var ppustatus: Int = 0
@@ -39,14 +37,11 @@ class PPU(private val bus: Bus) {
 
     val bitmap: Bitmap = Bitmap.createBitmap(SCREEN_WIDTH, SCREEN_HEIGHT, Bitmap.Config.ARGB_8888)
 
-    // Debug
     private var debugFrame = 0
-    var debugSkipSprite0Hit = false
     private val DEBUG = true
 
     init {
         reset()
-        println("PPU initialized")
     }
 
     fun reset() {
@@ -64,7 +59,7 @@ class PPU(private val bus: Bus) {
         scanlineCycle = 0
 
         frameBuffer.fill(0xFF000000.toInt())
-        paletteRAM.fill(0x0F.toByte())
+        for (i in paletteRAM.indices) paletteRAM[i] = 0x0F.toByte()
 
         if (DEBUG) println("PPU reset complete")
     }
@@ -102,9 +97,7 @@ class PPU(private val bus: Bus) {
 
                 if (scanline == 241) {
                     ppustatus = ppustatus or 0x80
-                    if ((ppuctrl and 0x80) != 0) {
-                        bus.cpu.requestNMI()
-                    }
+                    if ((ppuctrl and 0x80) != 0) bus.cpu.requestNMI()
                 }
 
                 if (scanline == 261) {
@@ -125,20 +118,21 @@ class PPU(private val bus: Bus) {
         bgMask.fill(false)
         scanlineBuffer.fill(0)
 
-        renderBackground()
+        renderBackground(currentScanline)
         renderSprites()
 
         val startIndex = currentScanline * SCREEN_WIDTH
         System.arraycopy(scanlineBuffer, 0, frameBuffer, startIndex, SCREEN_WIDTH)
     }
 
-    private fun renderBackground() {
+    private fun renderBackground(currentScanline: Int) {
         if ((ppumask and 0x08) == 0) return
 
         val bgColor = nesPalette[paletteRAM[0].toInt() and 0x3F]
         scanlineBuffer.fill(bgColor)
 
         var renderV = v
+
         for (tile in 0 until 33) {
             val coarseX = renderV and 0x001F
             val coarseY = (renderV shr 5) and 0x001F
@@ -159,6 +153,10 @@ class PPU(private val bus: Bus) {
             val attrByte = read(attrAddr.toUShort()).toInt()
             val attrShift = ((coarseY and 0x02) shl 1) or (coarseX and 0x02)
             val paletteIndex = (attrByte shr attrShift) and 0x03
+
+            if (DEBUG && debugFrame % 30 == 0 && currentScanline == 0 && tile < 5) {
+                println("BG Tile $tile | Index=0x${tileIndex.toString(16)} | Plane0=0x${plane0.toString(16)} | Plane1=0x${plane1.toString(16)} | Attr=0x${attrByte.toString(16)}")
+            }
 
             for (i in 0 until 8) {
                 val pixel = tile * 8 + i - fineX
@@ -201,9 +199,7 @@ class PPU(private val bus: Bus) {
             var subY = scanline - spriteY
             if (flipY) subY = tileHeight - 1 - subY
 
-            val subTileIndex = if (isSprite8x16) {
-                (tileIndex and 0xFE) + (subY / 8)
-            } else tileIndex
+            val subTileIndex = if (isSprite8x16) (tileIndex and 0xFE) + (subY / 8) else tileIndex
 
             val patternTable = if (isSprite8x16) {
                 if ((tileIndex and 1) != 0) 0x1000 else 0x0000
@@ -225,7 +221,7 @@ class PPU(private val bus: Bus) {
                 val px = spriteX + x
                 if (px < 0 || px >= SCREEN_WIDTH) continue
 
-                if (i == 0 && bgMask[px] && !debugSkipSprite0Hit) {
+                if (i == 0 && bgMask[px]) {
                     ppustatus = ppustatus or 0x40
                 }
 
@@ -304,12 +300,11 @@ class PPU(private val bus: Bus) {
         return when {
             addr < 0x2000 -> bus.cartridge.ppuRead(addr.toUShort())
             addr <= 0x3EFF -> vram[mirrorVRAMAddress(addr)].toUByte()
-            addr <= 0x3FFF -> {
+            else -> {
                 var mirrored = addr and 0x1F
-                if (mirrored >= 0x10 && (mirrored % 4) == 0) mirrored -= 0x10
+                if (mirrored >= 0x10 && mirrored % 4 == 0) mirrored -= 0x10
                 paletteRAM[mirrored].toUByte()
             }
-            else -> 0u
         }
     }
 
@@ -318,9 +313,9 @@ class PPU(private val bus: Bus) {
         when {
             addr < 0x2000 -> bus.cartridge.ppuWrite(addr.toUShort(), value)
             addr <= 0x3EFF -> vram[mirrorVRAMAddress(addr)] = value.toByte()
-            addr <= 0x3FFF -> {
+            else -> {
                 var mirrored = addr and 0x1F
-                if (mirrored >= 0x10 && (mirrored % 4) == 0) mirrored -= 0x10
+                if (mirrored >= 0x10 && mirrored % 4 == 0) mirrored -= 0x10
                 paletteRAM[mirrored] = value.toByte()
             }
         }
@@ -328,22 +323,19 @@ class PPU(private val bus: Bus) {
 
     private fun mirrorVRAMAddress(address: Int): Int {
         val offset = address and 0x0FFF
-        val ntIndex = offset / 0x400
-        val innerOffset = offset % 0x400
         return when (bus.cartridge.mirroringMode) {
-            Mirroring.VERTICAL -> (ntIndex % 2) * 0x400 + innerOffset
-            Mirroring.HORIZONTAL -> ((ntIndex / 2) * 0x400) + innerOffset
-            Mirroring.SINGLE_SCREEN_A -> innerOffset
-            Mirroring.SINGLE_SCREEN_B -> 0x400 + innerOffset
-            Mirroring.FOUR_SCREEN -> offset
+            Mirroring.VERTICAL -> (offset and 0x7FF)
+            Mirroring.HORIZONTAL -> ((offset and 0x3FF) or ((offset and 0x800) shr 1))
+            Mirroring.SINGLE_SCREEN_A -> (offset and 0x3FF)
+            Mirroring.SINGLE_SCREEN_B -> (offset and 0x3FF) + 0x400
+            else -> offset
         }
     }
 
     fun writeOAMDMA(page: UByte) {
-        val baseAddr = (page.toInt() and 0xFF) shl 8
-        for (i in 0 until 256) {
-            val value = bus.read((baseAddr + i).toUShort())
-            oam[oamaddr] = value.toByte()
+        val base = (page.toInt() shl 8)
+        for (i in 0..255) {
+            oam[oamaddr] = bus.read((base + i).toUShort()).toByte()
             oamaddr = (oamaddr + 1) and 0xFF
         }
     }
@@ -354,21 +346,13 @@ class PPU(private val bus: Bus) {
         } else {
             v = v and 0x8FFF
             var y = (v and 0x03E0) shr 5
-            y = when (y) {
-                29 -> { v = v xor 0x0800; 0 }
-                31 -> 0
-                else -> y + 1
-            }
+            y = if (y == 29) { v = v xor 0x0800; 0 } else if (y == 31) 0 else y + 1
             v = (v and 0xFC1F) or (y shl 5)
         }
     }
 
     private fun incrementX(addr: Int): Int {
-        return if ((addr and 0x001F) == 31) {
-            (addr and 0xFFE0) xor 0x0400
-        } else {
-            addr + 1
-        }
+        return if ((addr and 0x001F) == 31) (addr and 0xFFE0) xor 0x0400 else addr + 1
     }
 
     private fun copyXFromTToV() {
@@ -376,20 +360,14 @@ class PPU(private val bus: Bus) {
     }
 
     private fun getColorFromPalette(colorIndex: Int, paletteIndex: Int): Int {
-        if (colorIndex == 0) {
-            val colorCode = paletteRAM[0].toInt() and 0x3F
-            return nesPalette[colorCode]
-        }
-        val base = paletteIndex * 4
-        val paletteAddr = base + colorIndex
-        val colorCode = paletteRAM[paletteAddr and 0x1F].toInt() and 0x3F
+        val base = if (colorIndex == 0) 0 else paletteIndex * 4
+        val colorCode = paletteRAM[base + colorIndex and 0x1F].toInt() and 0x3F
         return nesPalette[colorCode]
     }
 
     private fun getSpriteColor(colorIndex: Int, paletteIndex: Int): Int {
-        val base = 0x10 + (paletteIndex * 4)
-        val paletteAddr = base + colorIndex
-        val colorCode = paletteRAM[paletteAddr and 0x1F].toInt() and 0x3F
+        val base = 0x10 + paletteIndex * 4
+        val colorCode = paletteRAM[base + colorIndex and 0x1F].toInt() and 0x3F
         return nesPalette[colorCode]
     }
 
@@ -400,32 +378,29 @@ class PPU(private val bus: Bus) {
     fun dumpDebugInfo() {
         println("=== PPU DEBUG INFO ===")
         println("Frame: $debugFrame | Scanline: $scanline | Cycle: $scanlineCycle")
-        println("PPUCTRL: 0x$$   {ppuctrl.toString(16)} | PPUMASK: 0x   $${ppumask.toString(16)} | STATUS: 0x${ppustatus.toString(16)}")
-        println("v: 0x$$   {v.toString(16)} | t: 0x   $${t.toString(16)} | fineX: $fineX")
+        println("PPUCTRL: 0x${ppuctrl.toString(16)} | PPUMASK: 0x${ppumask.toString(16)} | STATUS: 0x${ppustatus.toString(16)}")
+        println("v: 0x${v.toString(16)} | t: 0x${t.toString(16)} | fineX: $fineX")
         println("Palette[0]: 0x${paletteRAM[0].toInt() and 0xFF}")
         println("First sprite Y: ${oam[0].toInt() and 0xFF} X: ${oam[3].toInt() and 0xFF}")
         println("=====================")
     }
 
     private val nesPalette = intArrayOf(
-        0xFF545454.toInt(), 0xFF002E76.toInt(), 0xFF081090.toInt(), 0xFF300088.toInt(),
-        0xFF440064.toInt(), 0xFF5C0030.toInt(), 0xFF540400.toInt(), 0xFF3C1800.toInt(),
-        0xFF202A00.toInt(), 0xFF083A00.toInt(), 0xFF004000.toInt(), 0xFF003C00.toInt(),
-        0xFF00323C.toInt(), 0xFF000000.toInt(), 0xFF000000.toInt(), 0xFF000000.toInt(),
-
-        0xFF989698.toInt(), 0xFF084CC4.toInt(), 0xFF3032EC.toInt(), 0xFF5C1EE4.toInt(),
-        0xFF8814B0.toInt(), 0xFFA01464.toInt(), 0xFF982220.toInt(), 0xFF783C00.toInt(),
-        0xFF545A00.toInt(), 0xFF287200.toInt(), 0xFF087C00.toInt(), 0xFF007628.toInt(),
-        0xFF006678.toInt(), 0xFF000000.toInt(), 0xFF000000.toInt(), 0xFF000000.toInt(),
-
-        0xFFECECEC.toInt(), 0xFF4C9AEC.toInt(), 0xFF787CEC.toInt(), 0xFFB062EC.toInt(),
-        0xFFE454EC.toInt(), 0xFFEC58B4.toInt(), 0xFFEC6A64.toInt(), 0xFFD48820.toInt(),
-        0xFFA0AA00.toInt(), 0xFF74C400.toInt(), 0xFF4CD020.toInt(), 0xFF38CC6C.toInt(),
-        0xFF38B4CC.toInt(), 0xFF3C3C3C.toInt(), 0xFF000000.toInt(), 0xFF000000.toInt(),
-
-        0xFFECECEC.toInt(), 0xFFA8CCEC.toInt(), 0xFFBCBCEC.toInt(), 0xFFD4B2EC.toInt(),
-        0xFFECA6EC.toInt(), 0xFFECA6D4.toInt(), 0xFFECB4B0.toInt(), 0xFFE4C490.toInt(),
-        0xFFCCD278.toInt(), 0xFFB4DE78.toInt(), 0xFFA8E290.toInt(), 0xFF98E2B4.toInt(),
-        0xFFA0D6E4.toInt(), 0xFFA0A2A0.toInt(), 0xFF000000.toInt(), 0xFF000000.toInt()
+        0xFF545454.toInt(),0xFF002E76.toInt(),0xFF081090.toInt(),0xFF300088.toInt(),
+        0xFF440064.toInt(),0xFF5C0030.toInt(),0xFF540400.toInt(),0xFF3C1800.toInt(),
+        0xFF202A00.toInt(),0xFF083A00.toInt(),0xFF004000.toInt(),0xFF003C00.toInt(),
+        0xFF00323C.toInt(),0xFF000000.toInt(),0xFF000000.toInt(),0xFF000000.toInt(),
+        0xFF989698.toInt(),0xFF084CC4.toInt(),0xFF3032EC.toInt(),0xFF5C1EE4.toInt(),
+        0xFF8814B0.toInt(),0xFFA01464.toInt(),0xFF982220.toInt(),0xFF783C00.toInt(),
+        0xFF545A00.toInt(),0xFF287200.toInt(),0xFF087C00.toInt(),0xFF007628.toInt(),
+        0xFF006678.toInt(),0xFF000000.toInt(),0xFF000000.toInt(),0xFF000000.toInt(),
+        0xFFECECEC.toInt(),0xFF4C9AEC.toInt(),0xFF787CEC.toInt(),0xFFB062EC.toInt(),
+        0xFFE454EC.toInt(),0xFFEC58B4.toInt(),0xFFEC6A64.toInt(),0xFFD48820.toInt(),
+        0xFFA0AA00.toInt(),0xFF74C400.toInt(),0xFF4CD020.toInt(),0xFF38CC6C.toInt(),
+        0xFF38B4CC.toInt(),0xFF3C3C3C.toInt(),0xFF000000.toInt(),0xFF000000.toInt(),
+        0xFFECECEC.toInt(),0xFFA8CCEC.toInt(),0xFFBCBCEC.toInt(),0xFFD4B2EC.toInt(),
+        0xFFECA6EC.toInt(),0xFFECA6D4.toInt(),0xFFECB4B0.toInt(),0xFFE4C490.toInt(),
+        0xFFCCD278.toInt(),0xFFB4DE78.toInt(),0xFFA8E290.toInt(),0xFF98E2B4.toInt(),
+        0xFFA0D6E4.toInt(),0xFFA0A2A0.toInt(),0xFF000000.toInt(),0xFF000000.toInt()
     )
 }

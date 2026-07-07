@@ -393,8 +393,7 @@ class MainActivity : ComponentActivity() {
                 val t0 = System.nanoTime()
                 nes?.runFrame()
 
-                // Debug каждые 60 кадров
-                if (frameCount++ % 60 == 0) {
+                if (frameCount++ % 30 == 0) {
                     nes?.bus?.ppu?.dumpDebugInfo()
                 }
 
