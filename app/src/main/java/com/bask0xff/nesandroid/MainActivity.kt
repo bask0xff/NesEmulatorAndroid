@@ -384,12 +384,19 @@ class MainActivity : ComponentActivity() {
         })
     }
 
+    private var frameCount = 0
+
     private fun startRenderThread() {
         running = true
         renderThread = thread(start = true) {
             while (running) {
                 val t0 = System.nanoTime()
                 nes?.runFrame()
+
+                // Debug каждые 60 кадров
+                if (frameCount++ % 60 == 0) {
+                    nes?.bus?.ppu?.dumpDebugInfo()
+                }
 
                 val canvas = surfaceView.holder.lockCanvas() ?: continue
                 try {
