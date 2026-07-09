@@ -19,6 +19,7 @@ class Cartridge(romData: ByteArray) {
     lateinit var mapper: Mapper
 
     init {
+        // Проверка iNES заголовка
         if (rom.size < 16 ||
             rom[0] != 'N'.code.toByte() ||
             rom[1] != 'E'.code.toByte() ||
@@ -57,15 +58,16 @@ class Cartridge(romData: ByteArray) {
         prgROM = ByteArray(prgSize)
         System.arraycopy(rom, prgStart, prgROM, 0, prgSize)
 
-        // CHR ROM
+        // CHR ROM — ИСПРАВЛЕННЫЙ БЛОК
         val chrOffset = prgStart + prgSize
         chrROM = if (chrSize > 0 && chrOffset + chrSize <= rom.size) {
             ByteArray(chrSize).also {
                 System.arraycopy(rom, chrOffset, it, 0, chrSize)
             }
         } else {
-            println("WARNING: No CHR-ROM or wrong size, using CHR-RAM with test pattern")
+            println("WARNING: CHR copy failed or no CHR-ROM. chrSize=$chrSize, chrOffset=$chrOffset, rom.size=${rom.size}")
             ByteArray(8 * 1024).also { ram ->
+                // Тестовый паттерн на случай ошибки
                 for (i in 0 until ram.size step 16) {
                     if (i + 15 < ram.size) {
                         ram[i] = 0x55.toByte()
@@ -101,13 +103,10 @@ class Cartridge(romData: ByteArray) {
         mapper.reset()
 
         println("Cartridge loaded: ${getDescription()}")
-        println("CHR size: ${chrROM.size} bytes, chrBanks=$chrBanks")
-
         println("DEBUG CHR: chrBanks=$chrBanks, chrSize=$chrSize, chrOffset=$chrOffset, rom.size=${rom.size}")
-        if (chrSize > 0) {
+        if (chrROM.isNotEmpty()) {
             println("First 16 bytes of CHR: ${chrROM.take(16).joinToString { it.toUByte().toString(16) }}")
         }
-
     }
 
     private fun getDescription(): String {

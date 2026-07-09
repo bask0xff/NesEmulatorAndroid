@@ -42,7 +42,7 @@ class PPU(private val bus: Bus) {
 
     init {
         reset()
-        println("PPU class fully initialized (long version)")
+        println("PPU fully initialized (no shortcuts)")
     }
 
     fun reset() {
@@ -62,12 +62,14 @@ class PPU(private val bus: Bus) {
         frameBuffer.fill(0xFF000000.toInt())
         for (i in paletteRAM.indices) paletteRAM[i] = 0x0F.toByte()
 
-        if (DEBUG) println("PPU reset complete")
+        println("PPU reset complete")
     }
 
     fun step(elapsedCycles: Int) {
         repeat(elapsedCycles) {
-            if (scanline == 0 && scanlineCycle == 0) ppustatus = ppustatus and 0x3F
+            if (scanline == 261 && scanlineCycle == 0) {
+                ppustatus = ppustatus and 0x3F
+            }
 
             if (scanline in 0..239 && scanlineCycle == 260) {
                 if ((ppumask and 0x18) != 0 && bus.cartridge.mapper is Mapper4) {
@@ -85,7 +87,9 @@ class PPU(private val bus: Bus) {
             if (scanlineCycle >= CYCLES_PER_SCANLINE) {
                 scanlineCycle = 0
 
-                if (scanline in 0..239 || scanline == 261) copyXFromTToV()
+                if (scanline in 0..239 || scanline == 261) {
+                    copyXFromTToV()
+                }
 
                 if (scanline in 0..239) {
                     renderScanline(scanline)
@@ -97,11 +101,12 @@ class PPU(private val bus: Bus) {
                     if ((ppuctrl and 0x80) != 0) bus.cpu.requestNMI()
                 }
 
-                if (scanline == 261) v = t
+                if (scanline == 261) {
+                    v = t
+                }
 
-                scanline++
-                if (scanline >= TOTAL_SCANLINES) {
-                    scanline = 0
+                scanline = (scanline + 1) % TOTAL_SCANLINES
+                if (scanline == 0) {
                     debugFrame++
                     if (DEBUG && debugFrame % 30 == 0) println("=== Frame $debugFrame completed ===")
                 }
@@ -144,13 +149,13 @@ class PPU(private val bus: Bus) {
             val plane0 = read(patternAddr.toUShort()).toInt()
             val plane1 = read((patternAddr + 8).toUShort()).toInt()
 
-            val attrAddr = baseNTAddr + 0x3C0 + (coarseY / 4) * 8 + (coarseX / 4)
+            val attrAddr = baseNTAddr + 0x3C0 + ((coarseY / 4) * 8) + (coarseX / 4)
             val attrByte = read(attrAddr.toUShort()).toInt()
             val attrShift = ((coarseY and 0x02) shl 1) or (coarseX and 0x02)
             val paletteIndex = (attrByte shr attrShift) and 0x03
 
-            if (DEBUG && debugFrame % 30 == 0 && currentScanline == 0 && tile < 5) {
-                println("BG Tile $tile | Index=0x${tileIndex.toString(16)} | Plane0=0x${plane0.toString(16)} | Plane1=0x${plane1.toString(16)} | Attr=0x${attrByte.toString(16)} | Addr=0x${patternAddr.toString(16)}")
+            if (DEBUG && debugFrame % 30 == 0 && currentScanline in 0..30 && tile < 6) {
+                println("BG [$currentScanline] Tile $tile | coarse($coarseX,$coarseY) NT=$nameTable | Tile=0x${tileIndex.toString(16)} | fineY=$fineY | Plane0=0x${plane0.toString(16)} Plane1=0x${plane1.toString(16)} | Attr=0x${attrByte.toString(16)} P=$paletteIndex")
             }
 
             for (i in 0 until 8) {
@@ -267,49 +272,13 @@ class PPU(private val bus: Bus) {
     fun read(address: UShort): UByte {
         val addr = address.toInt() and 0x3FFF
         return if (addr < 0x2000) {
-            // Временный тест-паттерн
-            val test = if ((addr / 16) % 2 == 0) 0x55.toUByte() else 0xAA.toUByte()
-            if (DEBUG && debugFrame % 30 == 0 && addr < 0x20) {
-                println("TEST CHR Read addr=0x${addr.toString(16)} -> 0x${test.toInt()}")
-            }
-            test
+            bus.cartridge.ppuRead(addr.toUShort())
         } else if (addr <= 0x3EFF) {
             vram[mirrorVRAMAddress(addr)].toUByte()
         } else {
             var mirrored = addr and 0x1F
             if (mirrored >= 0x10 && mirrored % 4 == 0) mirrored -= 0x10
             paletteRAM[mirrored].toUByte()
-        }
-    }
-
-    fun read_old(address: UShort): UByte {
-        val addr = address.toInt() and 0x3FFF
-        val result = if (addr < 0x2000) {
-            val chr = bus.cartridge.ppuRead(addr.toUShort())
-            if (DEBUG && debugFrame % 30 == 0 && addr < 0x10) {
-                println("CHR Read addr=0x${addr.toString(16)} -> 0x${chr.toInt() and 0xFF}")
-            }
-            chr
-        } else if (addr <= 0x3EFF) {
-            vram[mirrorVRAMAddress(addr)].toUByte()
-        } else {
-            var mirrored = addr and 0x1F
-            if (mirrored >= 0x10 && mirrored % 4 == 0) mirrored -= 0x10
-            paletteRAM[mirrored].toUByte()
-        }
-        return result
-    }
-
-    // ... (остальные методы такие же как в предыдущей версии — mirrorVRAMAddress, write, writeOAMDMA, incrementY, incrementX, copyXFromTToV, getColorFromPalette, getSpriteColor, updateBitmap, dumpDebugInfo, nesPalette)
-
-    private fun mirrorVRAMAddress(address: Int): Int {
-        val offset = address and 0x0FFF
-        return when (bus.cartridge.mirroringMode) {
-            Mirroring.VERTICAL -> offset and 0x7FF
-            Mirroring.HORIZONTAL -> (offset and 0x3FF) or ((offset and 0x800) shr 1)
-            Mirroring.SINGLE_SCREEN_A -> offset and 0x3FF
-            Mirroring.SINGLE_SCREEN_B -> (offset and 0x3FF) + 0x400
-            else -> offset
         }
     }
 
@@ -326,6 +295,17 @@ class PPU(private val bus: Bus) {
         }
     }
 
+    private fun mirrorVRAMAddress(address: Int): Int {
+        val offset = address and 0x0FFF
+        return when (bus.cartridge.mirroringMode) {
+            Mirroring.VERTICAL -> offset and 0x7FF
+            Mirroring.HORIZONTAL -> (offset and 0x3FF) or ((offset and 0x800) shr 1)
+            Mirroring.SINGLE_SCREEN_A -> offset and 0x3FF
+            Mirroring.SINGLE_SCREEN_B -> (offset and 0x3FF) + 0x400
+            else -> offset
+        }
+    }
+
     fun writeOAMDMA(page: UByte) {
         val base = (page.toInt() and 0xFF) shl 8
         for (i in 0 until 256) {
@@ -336,18 +316,34 @@ class PPU(private val bus: Bus) {
     }
 
     private fun incrementY() {
-        if ((v and 0x7000) != 0x7000) v += 0x1000
-        else {
+        if ((v and 0x7000) == 0x7000) {
             v = v and 0x8FFF
-            var y = (v and 0x03E0) shr 5
-            y = if (y == 29) { v = v xor 0x0800; 0 } else if (y == 31) 0 else y + 1
-            v = (v and 0xFC1F) or (y shl 5)
+            var coarseY = (v and 0x03E0) shr 5
+            if (coarseY == 29) {
+                coarseY = 0
+                v = v xor 0x0800
+            } else if (coarseY == 31) {
+                coarseY = 0
+            } else {
+                coarseY++
+            }
+            v = (v and 0xFC1F) or (coarseY shl 5)
+        } else {
+            v += 0x1000
         }
     }
 
-    private fun incrementX(addr: Int): Int = if ((addr and 0x001F) == 31) (addr and 0xFFE0) xor 0x0400 else addr + 1
+    private fun incrementX(addr: Int): Int {
+        return if ((addr and 0x001F) == 31) {
+            (addr and 0xFFE0) xor 0x0400
+        } else {
+            addr + 1
+        }
+    }
 
-    private fun copyXFromTToV() { v = (v and 0xFBE0) or (t and 0x041F) }
+    private fun copyXFromTToV() {
+        v = (v and 0xFBE0) or (t and 0x041F)
+    }
 
     private fun getColorFromPalette(colorIndex: Int, paletteIndex: Int): Int {
         val base = if (colorIndex == 0) 0 else paletteIndex * 4
