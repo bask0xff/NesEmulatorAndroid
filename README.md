@@ -3,7 +3,7 @@ Supports Video, Sound and two game-pads.
 All games in NES format saved in hard cartridge
 
 # NES Emulator for Android
-
+3
 An Android port of the classic NES (Nintendo Entertainment System) game console emulator. This project provides a lightweight, high-performance library and a basic wrapper application to run game ROMs (.nes) on Android-powered mobile devices.
 
 The architecture is centered around porting and optimizing low-level emulation logic (CPU, graphics, and audio co-processors) based on principles similar to .NET NES emulator implementations, fully tailored to the Android lifecycle and graphics subsystem.
