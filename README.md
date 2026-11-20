@@ -1,7 +1,7 @@
 This is an emulator of old 8-bit console Dendi/Nintendo for Android.
 Supports Video, Sound and two game-pads.
 All games in NES format saved in hard cartridge
-1
+
 # NES Emulator for Android
 
 An Android port of the classic NES (Nintendo Entertainment System) game console emulator. This project provides a lightweight, high-performance library and a basic wrapper application to run game ROMs (.nes) on Android-powered mobile devices.
